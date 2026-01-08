@@ -1,0 +1,30 @@
+# 🎓 Rule-Based Institute FAQ Chatbot
+
+A visually appealing **rule-based FAQ chatbot** built using **HTML, CSS, and JavaScript**.  
+The chatbot answers common institute-related questions such as **timings, fees, courses, admissions, contact details**, etc., using simple **if–else pattern matching**.
+
+This project is developed as a **college mini-project** and runs completely in the browser.
+
+---
+
+## 📌 Features
+
+- Rule-based chatbot using if–else logic  
+- Handles 10+ fixed institute FAQs  
+- Attractive UI with glassmorphism effect  
+- Background image support  
+- No backend or database required  
+- Works offline  
+
+---
+
+## 🛠️ Technologies Used
+
+- **HTML** – Page structure  
+- **CSS** – Styling and layout  
+- **JavaScript** – Chatbot logic  
+
+---
+
+## 📂 Project Structure
+
