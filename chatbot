@@ -1,0 +1,254 @@
+#!/usr/bin/env node
+/**
+ * whatsapp-bot-cli.js
+ * Simulates WhatsApp Business API webhook logic via a terminal CLI.
+ * No frontend — all behaviour is exercised through console I/O.
+ *
+ * Setup:
+ *   export ANTHROPIC_API_KEY=sk-ant-...
+ *   node whatsapp-bot-cli.js
+ */
+
+const readline = require("readline");
+const https    = require("https");
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+const MODEL     = "claude-haiku-4-5-20251001"; // fast & cheap for CLI testing
+const BOT_PHONE = "+91-1800-BOT-123";
+const USER_PHONE = "+91-9876543210";
+const WA_CHAR_LIMIT = 800;
+
+const SYSTEM_PROMPT =
+  "You are a WhatsApp chatbot assistant. " +
+  "Use only WhatsApp-compatible formatting: *bold*, _italic_, numbered lists. " +
+  "Keep replies under 350 characters unless the user asks for more detail.";
+
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.error("\n\x1b[31m[ERROR]\x1b[0m ANTHROPIC_API_KEY is not set.");
+  console.error("  Run:  export ANTHROPIC_API_KEY=your-api-key-here\n");
+  process.exit(1);
+}
+
+// ─── Session store (in-memory, simulates 24hr TTL) ────────────────────────────
+class SessionStore {
+  constructor() { this.sessions = new Map(); }
+
+  get(phone) {
+    const entry = this.sessions.get(phone);
+    if (!entry) return this.create(phone);
+    // Simulate 24hr expiry
+    if (Date.now() - entry.createdAt > 86_400_000) {
+      this.sessions.delete(phone);
+      return this.create(phone);
+    }
+    entry.lastActivity = Date.now();
+    return entry;
+  }
+
+  create(phone) {
+    const entry = { phone, history: [], createdAt: Date.now(), lastActivity: Date.now() };
+    this.sessions.set(phone, entry);
+    return entry;
+  }
+
+  end(phone) {
+    this.sessions.delete(phone);
+  }
+}
+
+const store = new SessionStore();
+
+// ─── WhatsApp adapter ─────────────────────────────────────────────────────────
+/**
+ * Converts a raw Claude response to WhatsApp-compatible plain text.
+ * Returns { text, steps } where steps is an array of log entries.
+ */
+function whatsAppAdapter(rawText) {
+  const steps = [];
+  const originalLen = rawText.length;
+  let t = rawText;
+
+  // 1. Convert markdown to WA equivalents
+  t = t.replace(/\*\*(.*?)\*\*/g, "*$1*");            // **bold** → *bold*
+  t = t.replace(/__(.*?)__/g, "_$1_");                 // __italic__ → _italic_
+  t = t.replace(/```[\s\S]*?```/g, "[code block]");   // fenced code → label
+  t = t.replace(/`([^`]+)`/g, "`$1`");                 // inline code — WA supports mono
+  t = t.replace(/^#{1,3}\s+(.+)$/gm, "📌 $1");        // headers → emoji prefix
+  t = t.replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1");     // [text](url) → text only
+  t = t.replace(/^\s*[-*]\s+(.+)$/gm, "• $1");        // unordered lists → bullet
+
+  steps.push(`Markdown converted: ${originalLen} → ${t.length} chars`);
+
+  // 2. Enforce character limit
+  if (t.length > WA_CHAR_LIMIT) {
+    t = t.slice(0, WA_CHAR_LIMIT - 70) +
+        "\n\n_(reply *more* for the full response)_";
+    steps.push(`Truncated to ${WA_CHAR_LIMIT} chars (WA soft limit)`);
+  }
+
+  return { text: t, steps };
+}
+
+// ─── Claude API ───────────────────────────────────────────────────────────────
+function callClaude(messages) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      model: MODEL,
+      max_tokens: 1000,
+      system: SYSTEM_PROMPT,
+      messages,
+    });
+
+    const req = https.request(
+      {
+        hostname: "api.anthropic.com",
+        path: "/v1/messages",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+      },
+      res => {
+        let data = "";
+        res.on("data", c => (data += c));
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.error) return reject(new Error(json.error.message));
+            resolve(json.content?.[0]?.text || "");
+          } catch (e) { reject(e); }
+        });
+      }
+    );
+
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+// ─── Webhook handler (core logic) ─────────────────────────────────────────────
+/**
+ * Simulates the POST /webhook/whatsapp handler.
+ * In production this would parse the WhatsApp Business API payload,
+ * extract from/body, and call this function.
+ */
+async function handleWebhook(fromPhone, body) {
+  const normalised = body.trim();
+
+  log("recv", `← Inbound  from=${fromPhone}  body="${normalised.slice(0, 60)}${normalised.length > 60 ? "..." : ""}"`);
+  log("info", `Webhook payload: { "type": "text", "from": "${fromPhone}" }`);
+
+  // ── Keyword shortcuts ──────────────────────────────────────────────────────
+  if (/^menu$/i.test(normalised)) {
+    log("info", 'Keyword "menu" → returning static menu (no API call)');
+    const menu =
+      "📋 *Main Menu*\n\n" +
+      "1. Ask me anything\n" +
+      "2. Get help\n" +
+      "3. About this bot\n\n" +
+      "Reply with a number or just type your question!";
+    deliverMessage(fromPhone, menu);
+    return menu;
+  }
+
+  if (/^(stop|quit|unsubscribe)$/i.test(normalised)) {
+    store.end(fromPhone);
+    log("info", `Opt-out received. Session for ${fromPhone} terminated.`);
+    const bye = "You have been unsubscribed. Send any message to start a new session.";
+    deliverMessage(fromPhone, bye);
+    return bye;
+  }
+
+  // ── Session ───────────────────────────────────────────────────────────────
+  const session = store.get(fromPhone);
+  const histLen = session.history.length;
+  log("info", `Session: ${histLen} message${histLen !== 1 ? "s" : ""} in history (24hr TTL)`);
+
+  session.history.push({ role: "user", content: normalised });
+
+  // ── Call Claude ───────────────────────────────────────────────────────────
+  log("info", "Forwarding to Claude API...");
+  const rawResponse = await callClaude(session.history);
+  log("info", `Claude responded: ${rawResponse.length} chars`);
+
+  // ── Apply adapter ─────────────────────────────────────────────────────────
+  log("info", "Applying WhatsApp adapter...");
+  const { text: adapted, steps } = whatsAppAdapter(rawResponse);
+  steps.forEach(s => log("info", `  ↳ ${s}`));
+
+  // Save raw to history for better context in future turns
+  session.history.push({ role: "assistant", content: rawResponse });
+
+  // ── Deliver ───────────────────────────────────────────────────────────────
+  deliverMessage(fromPhone, adapted);
+  return adapted;
+}
+
+// ─── Simulated delivery ───────────────────────────────────────────────────────
+function deliverMessage(to, text) {
+  log("send", `→ Outbound to ${to}  (${text.length} chars)`);
+  log("success", "Delivered ✓✓  (read receipt simulation)");
+}
+
+// ─── Logger ───────────────────────────────────────────────────────────────────
+const C = {
+  recv:    "\x1b[34m",   // blue
+  send:    "\x1b[33m",   // yellow
+  info:    "\x1b[90m",   // dark gray
+  success: "\x1b[32m",   // green
+  error:   "\x1b[31m",   // red
+  reset:   "\x1b[0m",
+  bold:    "\x1b[1m",
+  cyan:    "\x1b[36m",
+  green:   "\x1b[32m",
+};
+
+const ICON = { recv: "←", send: "→", info: "·", success: "✓", error: "✗" };
+
+function log(type, msg) {
+  const time  = new Date().toLocaleTimeString();
+  const color = C[type] || C.info;
+  const icon  = ICON[type] || "·";
+  console.log(`${color}[${time}] ${icon} ${msg}${C.reset}`);
+}
+
+// ─── CLI interface ────────────────────────────────────────────────────────────
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+console.log(
+  `\n${C.bold}╔═══════════════════════════════════════════════╗`,
+  `\n║   WhatsApp Chatbot — Logic / CLI Simulator     ║`,
+  `\n╚═══════════════════════════════════════════════╝${C.reset}\n`
+);
+
+log("success", "WhatsApp Business API adapter initialised");
+log("info",    `Bot number  : ${BOT_PHONE}`);
+log("info",    `User number : ${USER_PHONE}`);
+log("success", "Claude API key loaded");
+log("info",    `Model       : ${MODEL}`);
+log("info",    "Session store: in-memory (24hr TTL)");
+log("info",    'Commands: "menu" | "stop" | "exit" (quit CLI)\n');
+
+function prompt() {
+  rl.question(`${C.cyan}You${C.reset} > `, async input => {
+    input = input.trim();
+    if (!input)          { prompt(); return; }
+    if (input === "exit"){ console.log("\nBye!\n"); rl.close(); return; }
+
+    console.log("");
+    try {
+      const response = await handleWebhook(USER_PHONE, input);
+      console.log(`\n${C.green}Bot${C.reset} > ${response}\n`);
+    } catch (e) {
+      log("error", `Failed to process message: ${e.message}`);
+      console.log(`${C.reset}Bot > Something went wrong. Please try again.\n`);
+    }
+
+    prompt();
+  });
+}
+
+prompt();
