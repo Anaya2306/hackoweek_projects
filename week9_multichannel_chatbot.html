@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Week 9 — Multichannel Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#06080d;--s1:#0a0e16;--s2:#0f1520;--s3:#141d2c;--border:#1c2840;
+  --text:#cdd8f0;--muted:#3e5478;
+  --font:'Nunito',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1.5rem 1rem}
+h1{font-size:1rem;font-weight:800;margin-bottom:.25rem;color:#fff}
+.subtitle{font-size:.72rem;color:var(--muted);font-family:var(--mono);margin-bottom:1.5rem}
+.week-tag{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:3px 10px;font-size:.6rem;color:#818cf8;font-family:var(--mono);margin-bottom:1.2rem}
+
+/* Tab bar */
+.tabs{display:flex;gap:6px;margin-bottom:1.5rem;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:5px}
+.tab{padding:7px 18px;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:600;transition:all .2s;border:1px solid transparent;display:flex;align-items:center;gap:6px;color:var(--muted)}
+.tab.active{color:#fff}
+.tab-web.active{background:#1d2540;border-color:#3b5dde;color:#818cf8}
+.tab-mob.active{background:#0f2b1a;border-color:#16622f;color:#4ade80}
+.tab-wa.active{background:#0a2b1a;border-color:#1a7040;color:#25d366}
+
+/* Channel containers */
+.channels{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;width:100%;max-width:1100px}
+.channel{display:none;animation:fadeIn .3s ease}
+.channel.visible{display:flex;flex-direction:column;align-items:center}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─── WEB CHANNEL ─────────────────────────────── */
+.web-shell{width:100%;max-width:420px;height:600px;display:flex;flex-direction:column;background:#0d111c;border:1px solid #2a3554;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.web-topbar{background:#111827;padding:.8rem 1rem;border-bottom:1px solid #1e2d45;display:flex;align-items:center;gap:10px}
+.web-logo{width:34px;height:34px;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+.web-title{font-size:.85rem;font-weight:700;color:#e8edf8}
+.web-sub{font-size:.6rem;color:#4a6090}
+.web-status{margin-left:auto;background:#0d2b0d;border:1px solid #1a4a1a;border-radius:6px;padding:2px 8px;font-size:.6rem;color:#4ade80;display:flex;align-items:center;gap:4px}
+.web-msgs{flex:1;padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:.7rem;scroll-behavior:smooth}
+.web-msgs::-webkit-scrollbar{width:3px}
+.web-msgs::-webkit-scrollbar-thumb{background:#1e2d45}
+.web-row{display:flex;gap:7px}
+.web-row.wu{flex-direction:row-reverse}
+.web-av{width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;margin-top:1px}
+.web-row.wb .web-av{background:linear-gradient(135deg,#6366f1,#818cf8)}
+.web-row.wu .web-av{background:#1a2040;border:1px solid #2a3554}
+.web-bub{max-width:80%;padding:.5rem .75rem;border-radius:9px;font-size:.75rem;line-height:1.6}
+.web-row.wb .web-bub{background:#151d30;border:1px solid #1e2d45;border-top-left-radius:2px}
+.web-row.wu .web-bub{background:#161e40;border:1px solid rgba(99,102,241,.3);border-top-right-radius:2px}
+.web-time{font-size:.55rem;color:#3a5070;margin-top:2px;display:block}
+.web-input-row{padding:.7rem;border-top:1px solid #1e2d45;display:flex;gap:6px;align-items:center;background:#0f1520}
+.web-inp{flex:1;background:#0a0d16;border:1px solid #1e2d45;border-radius:8px;padding:.5rem .8rem;color:#c8d8f0;font-family:var(--font);font-size:.75rem;outline:none}
+.web-inp:focus{border-color:#6366f1}
+.web-inp::placeholder{color:#3e5478}
+.web-send{background:linear-gradient(135deg,#6366f1,#818cf8);border:none;border-radius:8px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#fff;flex-shrink:0}
+
+/* ─── MOBILE CHANNEL ────────────────────────────── */
+.mob-shell{width:100%;max-width:300px;height:600px;display:flex;flex-direction:column;background:#0a1208;border:2px solid #2a4020;border-radius:32px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);position:relative}
+.mob-notch{width:80px;height:18px;background:#050a04;border-radius:0 0 12px 12px;margin:0 auto;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:10}
+.mob-topbar{background:#0f1a0c;padding:1.8rem .9rem .7rem;border-bottom:1px solid #1a3015;display:flex;align-items:center;gap:9px}
+.mob-back{color:#4ade80;font-size:.9rem;cursor:pointer}
+.mob-av{width:30px;height:30px;background:linear-gradient(135deg,#16a34a,#4ade80);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem}
+.mob-title{font-size:.82rem;font-weight:700;color:#d8ecd0}
+.mob-sub{font-size:.58rem;color:#3a6030}
+.mob-msgs{flex:1;padding:.8rem;overflow-y:auto;display:flex;flex-direction:column;gap:.6rem;scroll-behavior:smooth;padding-bottom:.5rem}
+.mob-msgs::-webkit-scrollbar{width:2px}
+.mob-msgs::-webkit-scrollbar-thumb{background:#1a3015}
+.mob-row{display:flex;gap:6px}
+.mob-row.mu{flex-direction:row-reverse}
+.mob-bub{max-width:82%;padding:.45rem .7rem;border-radius:10px;font-size:.72rem;line-height:1.55}
+.mob-row.mb .mob-bub{background:#0f2010;border:1px solid #1a3a15;border-top-left-radius:2px;color:#b8e8b0}
+.mob-row.mu .mob-bub{background:#162810;border:1px solid rgba(74,222,128,.25);border-top-right-radius:2px;color:#d8f0d0}
+.mob-time{font-size:.52rem;color:#2a5020;margin-top:2px;display:block}
+.mob-input-row{padding:.6rem .8rem;border-top:1px solid #1a3015;display:flex;gap:5px;align-items:center;background:#0a1208}
+.mob-inp{flex:1;background:#050a04;border:1px solid #1a3015;border-radius:20px;padding:.45rem .8rem;color:#c8e8c0;font-family:var(--font);font-size:.72rem;outline:none}
+.mob-inp:focus{border-color:#4ade80}
+.mob-inp::placeholder{color:#2a5020}
+.mob-send{background:linear-gradient(135deg,#16a34a,#4ade80);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;color:#fff;flex-shrink:0}
+
+/* ─── WHATSAPP CHANNEL ───────────────────────────── */
+.wa-shell{width:100%;max-width:340px;height:600px;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.wa-topbar{background:#1f2c34;padding:.7rem 1rem;display:flex;align-items:center;gap:10px}
+.wa-av{width:34px;height:34px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.wa-info h4{font-size:.82rem;color:#e9edef;font-weight:600}
+.wa-info p{font-size:.62rem;color:#8696a0}
+.wa-icons{margin-left:auto;display:flex;gap:14px;color:#aebac1;font-size:.9rem}
+.wa-msgs{flex:1;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' opacity='0.03'%3E%3Cpath fill='%2325d366' d='M20 10c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z'/%3E%3C/svg%3E");background-color:#0b141a;padding:.8rem;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;scroll-behavior:smooth}
+.wa-msgs::-webkit-scrollbar{width:3px}
+.wa-msgs::-webkit-scrollbar-thumb{background:#1f2c34}
+.wa-row{display:flex}
+.wa-row.wu{justify-content:flex-end}
+.wa-bub{max-width:78%;padding:.5rem .75rem .4rem;border-radius:8px;font-size:.75rem;line-height:1.55;position:relative}
+.wa-row.wb .wa-bub{background:#202c33;color:#e9edef;border-top-left-radius:0}
+.wa-row.wu .wa-bub{background:#005c4b;color:#e9edef;border-top-right-radius:0}
+.wa-time{font-size:.55rem;color:#8696a0;margin-top:3px;display:block;text-align:right}
+.wa-ticks{color:#53bdeb;font-size:.6rem}
+.wa-date-divider{text-align:center;margin:.3rem 0}
+.wa-date-divider span{background:#182229;color:#8696a0;font-size:.62rem;padding:3px 10px;border-radius:10px}
+.wa-input-row{background:#1f2c34;padding:.6rem .8rem;display:flex;gap:8px;align-items:center}
+.wa-inp-wrap{flex:1;background:#2a3942;border-radius:20px;display:flex;align-items:center;padding:0 .8rem;gap:6px}
+.wa-emoji{color:#aebac1;font-size:.85rem}
+.wa-inp{flex:1;background:transparent;border:none;padding:.5rem 0;color:#e9edef;font-family:var(--font);font-size:.75rem;outline:none}
+.wa-inp::placeholder{color:#8696a0}
+.wa-mic{color:#aebac1;font-size:.85rem}
+.wa-send-btn{background:#00a884;border:none;border-radius:50%;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#fff;flex-shrink:0}
+
+/* Channel label badges */
+.ch-label{font-size:.68rem;font-family:var(--mono);margin-bottom:.5rem;padding:3px 10px;border-radius:6px;font-weight:600}
+.ch-web{background:#1d2540;color:#818cf8;border:1px solid #3b5dde}
+.ch-mob{background:#0f2b1a;color:#4ade80;border:1px solid #16622f}
+.ch-wa{background:#0a2b1a;color:#25d366;border:1px solid #1a7040}
+
+/* Dots */
+.dots{display:flex;gap:3px;align-items:center;padding:3px 0}
+.dots span{width:4px;height:4px;background:#555;border-radius:50%;animation:b 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes b{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-3px)}}
+
+@media(max-width:900px){.channels{grid-template-columns:1fr}.channel{display:flex!important;flex-direction:column;align-items:center}}
+@media(max-width:900px){.tabs{display:none}}
+</style>
+</head>
+<body>
+<div class="week-tag">WEEK 9 · MULTICHANNEL SIMULATION</div>
+<h1>CampusBot — Multichannel</h1>
+<p class="subtitle">Same chatbot logic · three platform UIs · live & interactive</p>
+
+<div class="tabs">
+  <div class="tab tab-web active" onclick="showAll()">⊞ All Channels</div>
+  <div class="tab tab-web" onclick="focusChannel('web')">🖥 Web</div>
+  <div class="tab tab-mob" onclick="focusChannel('mob')">📱 Mobile</div>
+  <div class="tab tab-wa" onclick="focusChannel('wa')">💬 WhatsApp</div>
+</div>
+
+<div class="channels" id="channels">
+  <!-- WEB -->
+  <div class="channel visible" id="ch-web">
+    <span class="ch-label ch-web">🖥 Web Interface</span>
+    <div class="web-shell">
+      <div class="web-topbar">
+        <div class="web-logo">🎓</div>
+        <div>
+          <div class="web-title">CampusBot</div>
+          <div class="web-sub">Symbiosis Institute of Technology</div>
+        </div>
+        <div class="web-status"><span style="width:5px;height:5px;background:#4ade80;border-radius:50%;display:inline-block"></span>Online</div>
+      </div>
+      <div class="web-msgs" id="webMsgs"></div>
+      <div class="web-input-row">
+        <input class="web-inp" id="webInp" placeholder="Ask about fees, exams, hostel..." autocomplete="off"/>
+        <button class="web-send" onclick="sendAll('web')">➤</button>
+      </div>
+    </div>
+  </div>
+  <!-- MOBILE -->
+  <div class="channel visible" id="ch-mob">
+    <span class="ch-label ch-mob">📱 Mobile App</span>
+    <div class="mob-shell">
+      <div class="mob-notch"></div>
+      <div class="mob-topbar">
+        <span class="mob-back">‹</span>
+        <div class="mob-av">🎓</div>
+        <div>
+          <div class="mob-title">CampusBot</div>
+          <div class="mob-sub">● Active now</div>
+        </div>
+      </div>
+      <div class="mob-msgs" id="mobMsgs"></div>
+      <div class="mob-input-row">
+        <input class="mob-inp" id="mobInp" placeholder="Type a message..." autocomplete="off"/>
+        <button class="mob-send" onclick="sendAll('mob')">↑</button>
+      </div>
+    </div>
+  </div>
+  <!-- WHATSAPP -->
+  <div class="channel visible" id="ch-wa">
+    <span class="ch-label ch-wa">💬 WhatsApp Style</span>
+    <div class="wa-shell">
+      <div class="wa-topbar">
+        <div class="wa-av">🎓</div>
+        <div class="wa-info">
+          <h4>CampusBot SIT</h4>
+          <p>tap here for contact info</p>
+        </div>
+        <div class="wa-icons"><span>🔍</span><span>⋮</span></div>
+      </div>
+      <div class="wa-msgs" id="waMsgs">
+        <div class="wa-date-divider"><span>TODAY</span></div>
+      </div>
+      <div class="wa-input-row">
+        <div class="wa-inp-wrap">
+          <span class="wa-emoji">😊</span>
+          <input class="wa-inp" id="waInp" placeholder="Message" autocomplete="off"/>
+          <span class="wa-mic">🎤</span>
+        </div>
+        <button class="wa-send-btn" onclick="sendAll('wa')">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── SHARED BOT LOGIC ─────────────────────────────────────────
+const FAQS = [
+  { kws:['fee','fees','tuition','cost','payment','charge','money','pay'],
+    answer:'📋 *Fee Structure:*\nB.Tech: ₹2,10,000/year\nM.Tech: ₹1,80,000/year\nHostel+Mess: ₹90,000/year\nPayable in 2 installments.' },
+  { kws:['admission','apply','enroll','join','register','entry','set','jee'],
+    answer:'📝 *Admission:*\n1. Apply at symbiosis.ac.in\n2. SET/JEE entrance\n3. Counselling & documents\n4. Pay confirmation fees' },
+  { kws:['exam','test','result','marks','grade','mid','end','hall ticket','semester'],
+    answer:'📖 *Exams:*\nMid-Sem: Oct & Mar\nEnd-Sem: Nov & May\nResults in 3 weeks\nRevaluation: 7-day window' },
+  { kws:['hostel','dorm','room','accommodation','stay','mess','boarding','warden'],
+    answer:'🏠 *Hostel:*\nSeparate boys & girls\nAC & Non-AC rooms\n24/7 security & Wi-Fi\nMess: ₹3,500/month' },
+  { kws:['scholarship','merit','waiver','financial','grant','stipend','aid'],
+    answer:'🏆 *Scholarships:*\nMerit >90%: 25% waiver\nSports: Up to 50%\nGovt SC/ST/OBC via NSP' },
+  { kws:['placement','job','internship','salary','package','company','recruit'],
+    answer:'💼 *Placements 2024:*\nAvg: ₹6.2 LPA\nHighest: ₹32 LPA\nRate: 85%+' },
+  { kws:['contact','phone','email','address','reach','helpdesk','support'],
+    answer:'📞 *Contact:*\nPhone: +91-712-XXXXXXX\nEmail: info@sitng.edu.in' },
+  { kws:['timetable','schedule','class','lecture','timing','slot'],
+    answer:'🕐 *Timetable:*\nMorning: 8 AM–12 PM\nAfternoon: 1–5 PM\nCheck portal for semester schedule.' },
+  { kws:['library','book','borrow','journal','resource'],
+    answer:'📚 *Library:*\n50,000+ books\n200+ journals\nIssue: 3 books/14 days' },
+  { kws:['hello','hi','hey','help','start','greet'],
+    answer:"👋 *Hi! I'm CampusBot.*\nAsk me about:\n• Fees & Admission\n• Exams & Timetable\n• Hostel & Placement\n• Library & Contact" }
+];
+
+const DEFAULT = "🤔 I'm not sure about that.\nTry asking about: *fees, admission, exams, hostel, placement, library, or contact*";
+
+function getBotAnswer(raw){
+  const lower=raw.toLowerCase();
+  for(const faq of FAQS){
+    if(faq.kws.some(k=>lower.includes(k))) return faq.answer;
+  }
+  return DEFAULT;
+}
+
+function formatMd(text){
+  return text.replace(/\*(.*?)\*/g,'<b>$1</b>').replace(/\n/g,'<br>');
+}
+
+function ts(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+// ─── WEB CHANNEL ─────────────────────────────────────────────
+function webAddMsg(text, type){
+  const area=document.getElementById('webMsgs');
+  const row=document.createElement('div'); row.className=`web-row ${type==='bot'?'wb':'wu'}`;
+  const av=document.createElement('div'); av.className='web-av'; av.textContent=type==='bot'?'🎓':'👤';
+  const b=document.createElement('div'); b.className='web-bub'; b.innerHTML=formatMd(text);
+  const t=document.createElement('span'); t.className='web-time'; t.textContent=ts();
+  b.appendChild(t); row.appendChild(av); row.appendChild(b);
+  area.appendChild(row); area.scrollTop=area.scrollHeight;
+}
+function webTyping(){ const a=document.getElementById('webMsgs'); const r=document.createElement('div'); r.className='web-row wb'; r.id='wt'; const av=document.createElement('div'); av.className='web-av'; av.textContent='🎓'; const b=document.createElement('div'); b.className='web-bub'; b.innerHTML='<div class="dots"><span></span><span></span><span></span></div>'; r.appendChild(av); r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function webRmTyping(){ const e=document.getElementById('wt'); if(e)e.remove(); }
+
+// ─── MOBILE CHANNEL ───────────────────────────────────────────
+function mobAddMsg(text, type){
+  const area=document.getElementById('mobMsgs');
+  const row=document.createElement('div'); row.className=`mob-row ${type==='bot'?'mb':'mu'}`;
+  const b=document.createElement('div'); b.className='mob-bub'; b.innerHTML=formatMd(text);
+  const t=document.createElement('span'); t.className='mob-time'; t.textContent=ts();
+  b.appendChild(t); row.appendChild(b);
+  area.appendChild(row); area.scrollTop=area.scrollHeight;
+}
+function mobTyping(){ const a=document.getElementById('mobMsgs'); const r=document.createElement('div'); r.className='mob-row mb'; r.id='mt'; const b=document.createElement('div'); b.className='mob-bub'; b.innerHTML='<div class="dots"><span></span><span></span><span></span></div>'; r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function mobRmTyping(){ const e=document.getElementById('mt'); if(e)e.remove(); }
+
+// ─── WHATSAPP CHANNEL ─────────────────────────────────────────
+function waAddMsg(text, type){
+  const area=document.getElementById('waMsgs');
+  const row=document.createElement('div'); row.className=`wa-row ${type==='bot'?'wb':'wu'}`;
+  const b=document.createElement('div'); b.className='wa-bub'; b.innerHTML=formatMd(text);
+  const t=document.createElement('span'); t.className='wa-time'; t.textContent=ts()+(type==='user'?' <span class="wa-ticks">✓✓</span>':''); t.innerHTML=ts()+(type==='user'?` <span class="wa-ticks">✓✓</span>`:'');
+  b.appendChild(t); row.appendChild(b);
+  area.appendChild(row); area.scrollTop=area.scrollHeight;
+}
+function waTyping(){ const a=document.getElementById('waMsgs'); const r=document.createElement('div'); r.className='wa-row wb'; r.id='wat'; const b=document.createElement('div'); b.className='wa-bub'; b.innerHTML='<div class="dots"><span></span><span></span><span></span></div>'; r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function waRmTyping(){ const e=document.getElementById('wat'); if(e)e.remove(); }
+
+// ─── SHARED SEND ──────────────────────────────────────────────
+function sendAll(channel){
+  const inp=document.getElementById(channel==='web'?'webInp':channel==='mob'?'mobInp':'waInp');
+  const raw=inp.value.trim(); if(!raw)return;
+  inp.value='';
+  const answer=getBotAnswer(raw);
+
+  if(channel==='web'||true){
+    // Always sync all channels
+    webAddMsg(raw,'user'); webTyping();
+    mobAddMsg(raw,'user'); mobTyping();
+    waAddMsg(raw,'user'); waTyping();
+    setTimeout(()=>{ webRmTyping(); webAddMsg(answer,'bot'); },600);
+    setTimeout(()=>{ mobRmTyping(); mobAddMsg(answer,'bot'); },800);
+    setTimeout(()=>{ waRmTyping(); waAddMsg(answer,'bot'); },1000);
+  }
+}
+
+// Enter keys
+['webInp','mobInp','waInp'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter'){ const ch=id.replace('Inp',''); sendAll(ch); }});
+});
+
+function showAll(){
+  document.querySelectorAll('.channel').forEach(c=>c.classList.add('visible'));
+  document.getElementById('channels').style.gridTemplateColumns='repeat(3,1fr)';
+}
+function focusChannel(id){
+  document.querySelectorAll('.channel').forEach(c=>{
+    c.classList.toggle('visible',c.id===`ch-${id}`);
+  });
+  document.getElementById('channels').style.gridTemplateColumns='1fr';
+}
+
+// Initial messages
+window.onload=()=>{
+  const welcome="👋 *Hi! I'm CampusBot.*\nAsk me about fees, exams, hostel, placement & more!\nNotice how the *same response* appears across all three platforms!";
+  setTimeout(()=>{
+    webAddMsg(welcome,'bot');
+    mobAddMsg(welcome,'bot');
+    waAddMsg(welcome,'bot');
+  },300);
+};
+</script>
+</body>
+</html>

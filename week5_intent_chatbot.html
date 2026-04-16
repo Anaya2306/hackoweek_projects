@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Week 5 — Intent Classification Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #08090f;
+  --s1: #0f1018;
+  --s2: #161824;
+  --s3: #1e2132;
+  --border: #262b40;
+  --text: #dde2f0;
+  --muted: #6875a0;
+  --font: 'Space Grotesk', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  /* Intent colors */
+  --c-admissions: #f97316;
+  --c-exams:       #06b6d4;
+  --c-timetable:   #a855f7;
+  --c-hostel:      #10b981;
+  --c-scholarships:#f59e0b;
+  --c-placement:   #ec4899;
+  --c-general:     #6b7280;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.wrapper{width:100%;max-width:800px;height:93vh;display:flex;flex-direction:column}
+
+/* Header */
+.header{background:var(--s1);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;padding:1rem 1.4rem;display:flex;align-items:center;gap:12px}
+.avatar{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#f97316,#ec4899);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.hinfo h1{font-size:.95rem;font-weight:700}
+.hinfo p{font-size:.68rem;color:var(--muted);margin-top:1px}
+.pulse{display:inline-block;width:7px;height:7px;background:#4ade80;border-radius:50%;margin-right:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wtag{margin-left:auto;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:3px 9px;font-size:.62rem;color:#f97316;font-family:var(--mono);letter-spacing:.05em}
+
+/* Body layout */
+.body{flex:1;display:flex;overflow:hidden;border:1px solid var(--border);border-top:none;border-bottom:none}
+.chat{flex:1;background:var(--s1);padding:1.4rem;overflow-y:auto;display:flex;flex-direction:column;gap:.9rem;scroll-behavior:smooth}
+.chat::-webkit-scrollbar{width:3px}
+.chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* Intent sidebar */
+.sidebar{width:240px;background:#070810;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-head{padding:.65rem .9rem;border-bottom:1px solid var(--border);font-size:.6rem;color:#f97316;letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono);display:flex;align-items:center;gap:6px}
+.sb-dot{width:5px;height:5px;border-radius:50%;background:#f97316;animation:pulse 1.5s infinite}
+.sb-body{flex:1;overflow-y:auto;padding:.8rem}
+.sb-body::-webkit-scrollbar{width:3px}
+
+/* Intent cards */
+.intent-grid{display:flex;flex-direction:column;gap:6px;margin-bottom:1rem}
+.ic{border-radius:9px;padding:8px 10px;border:1px solid transparent;transition:all .3s;cursor:default}
+.ic.active{transform:translateX(3px)}
+.ic-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.ic-name{font-size:.68rem;font-weight:600}
+.ic-score{font-family:var(--mono);font-size:.6rem}
+.ic-bar-wrap{height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
+.ic-bar{height:100%;border-radius:2px;transition:width .5s ease}
+.ic-kws{font-size:.58rem;color:var(--muted);margin-top:4px;line-height:1.5}
+
+/* Detected intent display */
+.detected-box{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-top:8px}
+.det-label{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;font-family:var(--mono)}
+.det-badge{font-size:.8rem;font-weight:700;padding:3px 8px;border-radius:6px;display:inline-block}
+
+/* Messages */
+.row{display:flex;gap:9px;animation:up .22s ease}
+@keyframes up{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.row.user{flex-direction:row-reverse}
+.av{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;margin-top:2px}
+.row.bot .av{background:linear-gradient(135deg,#f97316,#ec4899)}
+.row.user .av{background:var(--s3);border:1px solid var(--border)}
+.bubble{max-width:78%;padding:.65rem .95rem;border-radius:11px;font-size:.8rem;line-height:1.65}
+.row.bot .bubble{background:var(--s2);border:1px solid var(--border);border-top-left-radius:3px}
+.row.user .bubble{background:#1a0f2e;border:1px solid rgba(236,72,153,.2);border-top-right-radius:3px}
+.bt{font-size:.58rem;color:var(--muted);margin-top:4px;display:block}
+/* Intent tag in bubble */
+.intent-tag{display:inline-block;border-radius:5px;padding:2px 7px;font-size:.62rem;font-weight:600;margin-bottom:6px;font-family:var(--mono)}
+
+/* Typing */
+.dots{display:flex;gap:4px;align-items:center;padding:3px 0}
+.dots span{width:5px;height:5px;background:var(--muted);border-radius:50%;animation:b 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes b{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+
+/* Input */
+.input-row{display:flex;gap:7px;padding:.9rem 1.1rem;background:var(--s2);border:1px solid var(--border);border-top:1px solid var(--border);border-radius:0 0 16px 16px;align-items:center}
+input[type=text]{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:.6rem .9rem;color:var(--text);font-family:var(--font);font-size:.8rem;outline:none;transition:border-color .2s}
+input[type=text]:focus{border-color:#f97316}
+input[type=text]::placeholder{color:var(--muted)}
+.sbtn{background:linear-gradient(135deg,#f97316,#ec4899);border:none;border-radius:9px;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem;transition:opacity .2s,transform .15s;flex-shrink:0;color:#fff}
+.sbtn:hover{opacity:.85;transform:scale(1.05)}
+@media(max-width:600px){.sidebar{display:none}.wrapper{height:100vh}.header,.input-row{border-radius:0}}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="avatar">🧠</div>
+    <div class="hinfo">
+      <h1>CampusBot <span style="color:#f97316;font-size:.75rem">+ Intent Classification</span></h1>
+      <p><span class="pulse"></span>Intent classifier · 7 intents defined</p>
+    </div>
+    <div class="wtag">WEEK 5 · INTENT</div>
+  </div>
+
+  <div class="body">
+    <div class="chat" id="chat"></div>
+    <div class="sidebar">
+      <div class="sb-head"><div class="sb-dot"></div>Intent Classifier</div>
+      <div class="sb-body">
+        <div class="intent-grid" id="intentGrid"></div>
+        <div class="detected-box">
+          <div class="det-label">Detected Intent</div>
+          <div id="detBadge" style="color:var(--muted);font-size:.72rem;font-style:italic">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-row">
+    <input type="text" id="inp" placeholder="Ask about admission, exams, hostel, scholarships..." autocomplete="off"/>
+    <button class="sbtn" onclick="send()">➤</button>
+  </div>
+</div>
+
+<script>
+// ─── INTENT DEFINITIONS ──────────────────────────────────────
+const INTENTS = [
+  {
+    id: "admissions",
+    label: "🎓 Admissions",
+    color: "var(--c-admissions)",
+    keywords: ["admission","apply","application","enroll","enrollment","join","register","entry","intake","set","jee","entrance","form","seat","merit","cutoff","get in","criteria","eligibility","documents"],
+    responses: [
+      "📝 <b>Admission Process:</b><br>1. Fill the online form at <u>symbiosis.ac.in</u><br>2. Clear SET / JEE Mains<br>3. Attend counselling<br>4. Submit documents & pay fees<br><br>Applications open <b>March – April</b> each year.",
+      "🎓 <b>Eligibility:</b><br>• B.Tech: 60% in 10+2 with Maths & Physics<br>• M.Tech: B.Tech in relevant field with 55%<br>• MBA: Any graduation + SET/CAT/MAT score"
+    ]
+  },
+  {
+    id: "exams",
+    label: "📖 Exams",
+    color: "var(--c-exams)",
+    keywords: ["exam","examination","test","assessment","paper","quiz","result","marks","grade","score","revaluation","hall ticket","viva","practical","pass","fail","supplementary","backlog","semester exam"],
+    responses: [
+      "📖 <b>Examination Schedule:</b><br>• Mid-Sem: October & March<br>• End-Sem: November & May<br>• Practical exams: 2 weeks before end-sem<br><br>Hall tickets issued 5 days before exams.",
+      "📊 <b>Result & Revaluation:</b><br>• Results published within 3 weeks<br>• Revaluation form: 7 days after result<br>• Fee: ₹500/subject<br>• Grace marks: up to 5 per subject"
+    ]
+  },
+  {
+    id: "timetable",
+    label: "🕐 Timetable",
+    color: "var(--c-timetable)",
+    keywords: ["timetable","time table","schedule","class","lecture","timing","hour","when","slot","period","routine","daily","weekly","lab session","batch"],
+    responses: [
+      "🕐 <b>Class Schedule:</b><br>• Morning slot: 8:00 – 12:00 PM<br>• Afternoon slot: 1:00 – 5:00 PM<br>• Lab sessions: 3-hour blocks<br>• Timetable released on the college portal each semester."
+    ]
+  },
+  {
+    id: "hostel",
+    label: "🏠 Hostel",
+    color: "var(--c-hostel)",
+    keywords: ["hostel","dorm","dormitory","accommodation","room","stay","lodge","residential","boarding","pg","mess","warden","curfew","inout","boys","girls","single","double","food","night"],
+    responses: [
+      "🏠 <b>Hostel Facilities:</b><br>• Separate boys & girls blocks<br>• AC & Non-AC options<br>• 24/7 security + CCTV<br>• Campus-wide Wi-Fi<br>• In/out by 9:00 PM (weekdays)<br>• Mess fee: ₹3,500/month"
+    ]
+  },
+  {
+    id: "scholarships",
+    label: "🏆 Scholarships",
+    color: "var(--c-scholarships)",
+    keywords: ["scholarship","merit","financial aid","stipend","waiver","discount","bursary","fellowship","grant","free","reduction","fund","economic","poor","obc","sc","st","sports quota","sponsored","nsp"],
+    responses: [
+      "🏆 <b>Scholarships Available:</b><br>• <b>Merit:</b> >90% in 12th → 25% fee waiver<br>• <b>Sports Quota:</b> Up to 50% waiver<br>• <b>Govt Schemes:</b> SC/ST/OBC through NSP<br>• <b>Excellence Award:</b> Top 5 rank holders<br><br>Apply within 30 days of admission."
+    ]
+  },
+  {
+    id: "placement",
+    label: "💼 Placement",
+    color: "var(--c-placement)",
+    keywords: ["placement","job","career","internship","recruit","hire","company","salary","package","campus","drive","offer","lpa","tcs","infosys","wipro","capgemini","persistent","resume","interview","ppo"],
+    responses: [
+      "💼 <b>Placement Stats 2024:</b><br>• Avg Package: ₹6.2 LPA<br>• Highest Package: ₹32 LPA<br>• Placement Rate: 85%+<br>• Top Recruiters: TCS, Infosys, Wipro, Capgemini, Persistent<br><br>Internship portal opens every Jan & July."
+    ]
+  },
+  {
+    id: "general",
+    label: "💬 General",
+    color: "var(--c-general)",
+    keywords: ["hello","hi","hey","help","what","about","fee","fees","contact","phone","email","library","book","wifi","canteen","food","sport","gym","holiday","vacation"],
+    responses: [
+      "👋 <b>Hello! I'm CampusBot.</b><br>I classify your intent before answering!<br><br>Try asking about:<br>• Admissions • Exams • Timetable<br>• Hostel • Scholarships • Placement"
+    ]
+  }
+];
+
+const STOPWORDS = new Set(["a","an","the","is","it","in","on","at","to","for","of","and","or","but","be","was","are","were","this","that","i","me","my","we","you","he","she","they","do","does","did","have","has","had","will","would","can","could","should","may","might","what","when","where","which","who","how","why","about","with","from","by","its","their","our","your","just","so","if","than","also"]);
+
+function tokenize(t){ return t.toLowerCase().replace(/[^a-z0-9\s]/g,'').split(/\s+/).filter(w=>w&&!STOPWORDS.has(w)); }
+
+function classifyIntent(raw){
+  const tokens = tokenize(raw);
+  const scores = INTENTS.map(intent => {
+    let score = 0;
+    for(const kw of intent.keywords){
+      const kwTokens = kw.split(' ');
+      if(kwTokens.every(k => tokens.includes(k) || raw.toLowerCase().includes(kw))) score++;
+    }
+    return { intent, score };
+  });
+  scores.sort((a,b)=>b.score-a.score);
+  const maxScore = scores[0].score;
+  // Normalize scores for display
+  const normalized = scores.map(s=>({ ...s, norm: maxScore>0 ? s.score/maxScore : 0 }));
+  return normalized;
+}
+
+// ─── SIDEBAR ─────────────────────────────────────────────────
+function initSidebar(){
+  const grid = document.getElementById('intentGrid');
+  grid.innerHTML = INTENTS.map(i=>`
+    <div class="ic" id="ic-${i.id}" style="background:${i.color}12;border-color:${i.color}25">
+      <div class="ic-top">
+        <span class="ic-name" style="color:${i.color}">${i.label}</span>
+        <span class="ic-score" id="sc-${i.id}" style="color:${i.color}">0.00</span>
+      </div>
+      <div class="ic-bar-wrap"><div class="ic-bar" id="bar-${i.id}" style="width:0%;background:${i.color}"></div></div>
+      <div class="ic-kws">${i.keywords.slice(0,4).join(', ')}…</div>
+    </div>`).join('');
+}
+
+function updateSidebar(scores, best){
+  for(const {intent, score, norm} of scores){
+    const card = document.getElementById(`ic-${intent.id}`);
+    document.getElementById(`sc-${intent.id}`).textContent = score.toFixed(2);
+    document.getElementById(`bar-${intent.id}`).style.width = `${Math.round(norm*100)}%`;
+    card.classList.toggle('active', intent.id===best.intent.id);
+    card.style.borderColor = intent.id===best.intent.id ? intent.color+'80' : intent.color+'25';
+  }
+  const det = document.getElementById('detBadge');
+  const b = best.intent;
+  det.innerHTML = `<span class="det-badge" style="background:${b.color}20;color:${b.color};border:1px solid ${b.color}40">${b.label}</span><div style="font-size:.6rem;color:var(--muted);margin-top:4px;font-family:var(--mono)">score: ${best.score.toFixed(2)}</div>`;
+}
+
+// ─── MESSAGING ───────────────────────────────────────────────
+function ts(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+function addMsg(html, type, intentColor, intentLabel){
+  const area = document.getElementById('chat');
+  const row = document.createElement('div'); row.className=`row ${type}`;
+  const av = document.createElement('div'); av.className='av'; av.textContent=type==='bot'?'🧠':'👤';
+  const b = document.createElement('div'); b.className='bubble';
+  if(type==='bot' && intentColor){
+    b.innerHTML=`<span class="intent-tag" style="background:${intentColor}20;color:${intentColor};border:1px solid ${intentColor}40">${intentLabel}</span><br>${html}`;
+  } else { b.innerHTML=html; }
+  const t=document.createElement('span'); t.className='bt'; t.textContent=ts();
+  b.appendChild(t); row.appendChild(av); row.appendChild(b);
+  area.appendChild(row); area.scrollTop=area.scrollHeight;
+}
+
+function showTyping(){ const a=document.getElementById('chat'); const r=document.createElement('div'); r.className='row bot'; r.id='typ'; const av=document.createElement('div'); av.className='av'; av.textContent='🧠'; const b=document.createElement('div'); b.className='bubble'; b.innerHTML='<div class="dots"><span></span><span></span><span></span></div>'; r.appendChild(av); r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function removeTyping(){ const e=document.getElementById('typ'); if(e)e.remove(); }
+
+function send(){
+  const inp=document.getElementById('inp');
+  const raw=inp.value.trim(); if(!raw)return;
+  addMsg(raw.replace(/</g,'&lt;'),'user');
+  inp.value='';
+  const scores=classifyIntent(raw);
+  const best=scores[0];
+  updateSidebar(scores, best);
+  showTyping();
+  setTimeout(()=>{
+    removeTyping();
+    const resp=best.intent.responses[Math.floor(Math.random()*best.intent.responses.length)];
+    addMsg(resp,'bot',best.intent.color,best.intent.label);
+  },650);
+}
+
+document.getElementById('inp').addEventListener('keydown',e=>{ if(e.key==='Enter')send(); });
+
+window.onload=()=>{
+  initSidebar();
+  setTimeout(()=>addMsg("🧠 <b>Week 5: Intent Classification!</b><br><br>Every message is scored against <b>7 intents</b> using keyword-based scoring. The highest-scoring intent routes your query to the right response.<br><br>Watch the <b>Intent Classifier</b> panel → to see live scores.<br><br>Try: <i>\"I want to apply for admission\"</i> or <i>\"Tell me about scholarships\"</i>",'bot'),300);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Week 8 — Fallback & Escalation Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#06080c;--s1:#0a0d13;--s2:#0f1520;--s3:#141d2b;--border:#1c2636;
+  --text:#c4d4e8;--muted:#3e5470;
+  --acc:#818cf8;--acc2:#6366f1;
+  --warn:#fb923c;--err:#f43f5e;--ok:#34d399;
+  --font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.wrapper{width:100%;max-width:700px;height:93vh;display:flex;flex-direction:column}
+.header{background:var(--s1);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;padding:1rem 1.4rem;display:flex;align-items:center;gap:12px}
+.avatar{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.hinfo h1{font-size:.95rem;font-weight:700}
+.hinfo p{font-size:.68rem;color:var(--muted);margin-top:1px}
+.pulse{display:inline-block;width:7px;height:7px;background:var(--ok);border-radius:50%;margin-right:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wtag{margin-left:auto;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:3px 9px;font-size:.62rem;color:var(--acc);font-family:var(--mono)}
+/* Confidence meter in header */
+.conf-meter{display:flex;align-items:center;gap:8px;padding:.5rem 1.4rem;background:var(--s1);border-left:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.conf-label{font-size:.62rem;color:var(--muted);font-family:var(--mono);white-space:nowrap}
+.conf-track{flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.conf-fill{height:100%;border-radius:3px;transition:width .5s ease, background .5s ease;width:0%}
+.conf-val{font-size:.65rem;font-family:var(--mono);color:var(--text);width:36px;text-align:right;flex-shrink:0}
+
+.chat{flex:1;background:var(--s1);border:1px solid var(--border);border-top:none;border-bottom:none;padding:1.4rem;overflow-y:auto;display:flex;flex-direction:column;gap:.9rem;scroll-behavior:smooth}
+.chat::-webkit-scrollbar{width:3px}
+.chat::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* Messages */
+.row{display:flex;gap:9px;animation:up .22s ease}
+@keyframes up{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.row.user{flex-direction:row-reverse}
+.av{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;margin-top:2px}
+.row.bot .av{background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.row.user .av{background:var(--s3);border:1px solid var(--border)}
+.bubble{max-width:80%;padding:.7rem 1rem;border-radius:11px;font-size:.82rem;line-height:1.65}
+.row.bot .bubble{background:var(--s2);border:1px solid var(--border);border-top-left-radius:3px}
+.row.user .bubble{background:#0f1528;border:1px solid rgba(129,140,248,.2);border-top-right-radius:3px}
+.bt{font-size:.58rem;color:var(--muted);margin-top:4px;display:block}
+
+/* Clarification block */
+.clarify-block{background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.25);border-radius:10px;padding:.8rem 1rem;margin-top:.5rem}
+.cb-title{font-size:.7rem;color:var(--warn);font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:5px}
+.cb-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
+.cb-chip{background:var(--s3);border:1px solid rgba(251,146,60,.3);color:var(--warn);border-radius:20px;padding:4px 11px;font-size:.7rem;cursor:pointer;transition:all .2s}
+.cb-chip:hover{background:rgba(251,146,60,.15)}
+
+/* Related FAQs block */
+.related-block{background:rgba(129,140,248,.05);border:1px solid rgba(129,140,248,.2);border-radius:10px;padding:.8rem 1rem;margin-top:.5rem}
+.rb-title{font-size:.7rem;color:var(--acc);font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:5px}
+.rb-item{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid rgba(129,140,248,.1);cursor:pointer;transition:all .2s}
+.rb-item:last-child{border-bottom:none}
+.rb-item:hover .rb-q{color:var(--acc)}
+.rb-arrow{color:var(--muted);font-size:.7rem;flex-shrink:0}
+.rb-q{font-size:.75rem;color:var(--text);transition:color .2s}
+
+/* Escalation block */
+.escalate-block{background:rgba(244,63,94,.05);border:1px solid rgba(244,63,94,.2);border-radius:10px;padding:.8rem 1rem;margin-top:.5rem}
+.eb-title{font-size:.7rem;color:var(--err);font-weight:600;margin-bottom:.5rem;display:flex;align-items:center;gap:5px}
+.eb-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:.5rem}
+.eb-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:.72rem;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none;border:none}
+.eb-email{background:rgba(244,63,94,.1);border:1px solid rgba(244,63,94,.3);color:var(--err)}
+.eb-email:hover{background:rgba(244,63,94,.2)}
+.eb-wa{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:var(--ok)}
+.eb-wa:hover{background:rgba(52,211,153,.2)}
+
+/* Dots */
+.dots{display:flex;gap:4px;align-items:center;padding:3px 0}
+.dots span{width:5px;height:5px;background:var(--muted);border-radius:50%;animation:b 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes b{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+
+.input-row{display:flex;gap:7px;padding:.9rem 1.1rem;background:var(--s2);border:1px solid var(--border);border-top:1px solid var(--border);border-radius:0 0 16px 16px;align-items:center}
+input[type=text]{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:.6rem .9rem;color:var(--text);font-family:var(--font);font-size:.8rem;outline:none;transition:border-color .2s}
+input[type=text]:focus{border-color:var(--acc)}
+input[type=text]::placeholder{color:var(--muted)}
+.sbtn{background:linear-gradient(135deg,var(--acc),var(--acc2));border:none;border-radius:9px;width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.95rem;color:#fff}
+.sbtn:hover{opacity:.85;transform:scale(1.05)}
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="avatar">🛟</div>
+    <div class="hinfo">
+      <h1>CampusBot <span style="color:var(--acc);font-size:.75rem">+ Fallback & Escalation</span></h1>
+      <p><span class="pulse"></span>Confidence scoring · clarification · handover</p>
+    </div>
+    <div class="wtag">WEEK 8 · FALLBACK</div>
+  </div>
+  <div class="conf-meter">
+    <span class="conf-label">Confidence:</span>
+    <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+    <span class="conf-val" id="confVal">—</span>
+  </div>
+  <div class="chat" id="chat"></div>
+  <div class="input-row">
+    <input type="text" id="inp" placeholder="Ask anything — even nonsense to test fallbacks..." autocomplete="off"/>
+    <button class="sbtn" onclick="send()">➤</button>
+  </div>
+</div>
+
+<script>
+// ─── FAQ DATASET ──────────────────────────────────────────────
+const FAQS = [
+  { id:'fees',        topic:'Fees',        kws:['fee','fees','tuition','cost','payment','charge','money','pay','amount'],
+    answer:'📋 <b>Fee Structure:</b><br>• B.Tech: ₹2,10,000/year<br>• M.Tech: ₹1,80,000/year<br>• Hostel + Mess: ₹90,000/year<br>Payable in 2 semester installments.' },
+  { id:'admission',   topic:'Admission',   kws:['admission','apply','enroll','join','register','entry','set','jee','form','intake'],
+    answer:'📝 <b>Admission:</b><br>1. Apply at symbiosis.ac.in<br>2. SET/JEE entrance<br>3. Counselling & documents<br>4. Pay confirmation fees' },
+  { id:'exams',       topic:'Exams',       kws:['exam','test','assessment','result','marks','grade','score','mid','end','hall ticket','revaluation'],
+    answer:'📖 <b>Exams:</b><br>• Mid-Sem: Oct & Mar<br>• End-Sem: Nov & May<br>• Results in 3 weeks<br>• Revaluation: 7-day window' },
+  { id:'hostel',      topic:'Hostel',      kws:['hostel','dorm','room','accommodation','stay','lodge','mess','boarding','warden'],
+    answer:'🏠 <b>Hostel:</b><br>• Separate boys & girls<br>• AC & Non-AC<br>• 24/7 security & Wi-Fi<br>• Mess: ₹3,500/month' },
+  { id:'scholarship', topic:'Scholarship', kws:['scholarship','merit','waiver','financial','stipend','grant','discount','aid','free'],
+    answer:'🏆 <b>Scholarships:</b><br>• Merit >90%: 25% waiver<br>• Sports: Up to 50%<br>• Govt SC/ST/OBC via NSP' },
+  { id:'placement',   topic:'Placement',   kws:['placement','job','internship','career','salary','package','company','recruit','hire'],
+    answer:'💼 <b>Placements 2024:</b><br>• Avg: ₹6.2 LPA | Highest: ₹32 LPA<br>• Top recruiters: TCS, Infosys, Wipro<br>• Rate: 85%+' },
+  { id:'contact',     topic:'Contact',     kws:['contact','phone','email','address','reach','helpdesk','support','number'],
+    answer:'📞 <b>Contact:</b><br>Phone: +91-712-XXXXXXX<br>Email: info@sitng.edu.in<br>Helpdesk: support@sitng.edu.in' },
+  { id:'timetable',   topic:'Timetable',   kws:['timetable','schedule','class','lecture','timing','slot','period','routine'],
+    answer:'🕐 <b>Timetable:</b><br>• Morning: 8 AM – 12 PM<br>• Afternoon: 1 PM – 5 PM<br>• Released on portal before each semester.' },
+  { id:'library',     topic:'Library',     kws:['library','book','borrow','journal','resource','catalogue','read','issue'],
+    answer:'📚 <b>Library:</b><br>• 50,000+ books, 200+ journals<br>• INFLIBNET digital access<br>• Issue: 3 books / 14 days' },
+  { id:'canteen',     topic:'Canteen',     kws:['canteen','food','eat','meal','lunch','mess','cafe','cafeteria','snack','menu'],
+    answer:'🍽️ <b>Canteen:</b><br>• Veg & Non-Veg daily<br>• Mess subscription: ₹3,500/month<br>• Open 7:30 AM – 8:00 PM' }
+];
+
+const RELATED_MAP = {
+  fees:        ['scholarship','hostel','admission'],
+  admission:   ['fees','exams','scholarship'],
+  exams:       ['timetable','fees','contact'],
+  hostel:      ['fees','canteen','contact'],
+  scholarship: ['fees','admission','contact'],
+  placement:   ['exams','contact','timetable'],
+  contact:     ['fees','admission','hostel'],
+  timetable:   ['exams','contact','library'],
+  library:     ['timetable','contact','exams'],
+  canteen:     ['hostel','contact','fees']
+};
+
+const CLARIFY_SUGGESTIONS = {
+  low: ['Tell me about fees','How to apply for admission','Hostel facilities','Exam schedule','Scholarship options'],
+  vague: ['Explain fee structure','When are exams?','How do I enroll?','What is the placement rate?','Contact information']
+};
+
+function scoreQuery(raw){
+  const lower=raw.toLowerCase();
+  const words=lower.replace(/[^a-z0-9\s]/g,'').split(/\s+/).filter(Boolean);
+  let best=null, bestScore=0;
+  for(const faq of FAQS){
+    const score = faq.kws.filter(k=>words.some(w=>w.includes(k)||k.includes(w))).length;
+    if(score>bestScore){ bestScore=score; best=faq; }
+  }
+  // Normalize: 0-1 confidence
+  const maxPossible=4;
+  const conf = best ? Math.min(bestScore/maxPossible,1) : 0;
+  return { best, conf, rawScore:bestScore };
+}
+
+// Confidence thresholds
+const HIGH_CONF = 0.4;
+const LOW_CONF  = 0.15;
+
+function getRelated(faqId){
+  const ids = RELATED_MAP[faqId] || [];
+  return ids.map(id=>FAQS.find(f=>f.id===id)).filter(Boolean);
+}
+
+// ─── UI HELPERS ───────────────────────────────────────────────
+function updateMeter(conf){
+  const fill=document.getElementById('confFill');
+  const val=document.getElementById('confVal');
+  const pct=Math.round(conf*100);
+  fill.style.width=`${pct}%`;
+  fill.style.background = conf>=HIGH_CONF ? 'var(--ok)' : conf>=LOW_CONF ? 'var(--warn)' : 'var(--err)';
+  val.textContent=`${pct}%`;
+  val.style.color = conf>=HIGH_CONF ? 'var(--ok)' : conf>=LOW_CONF ? 'var(--warn)' : 'var(--err)';
+}
+
+function ts(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+
+function addMsg(html, type){
+  const a=document.getElementById('chat');
+  const r=document.createElement('div'); r.className=`row ${type}`;
+  const av=document.createElement('div'); av.className='av'; av.textContent=type==='bot'?'🛟':'👤';
+  const b=document.createElement('div'); b.className='bubble'; b.innerHTML=html;
+  const t=document.createElement('span'); t.className='bt'; t.textContent=ts();
+  b.appendChild(t); r.appendChild(av); r.appendChild(b);
+  a.appendChild(r); a.scrollTop=a.scrollHeight;
+  return b;
+}
+
+function showTyping(){ const a=document.getElementById('chat'); const r=document.createElement('div'); r.className='row bot'; r.id='typ'; const av=document.createElement('div'); av.className='av'; av.textContent='🛟'; const b=document.createElement('div'); b.className='bubble'; b.innerHTML='<div class="dots"><span></span><span></span><span></span></div>'; r.appendChild(av); r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function removeTyping(){ const e=document.getElementById('typ'); if(e)e.remove(); }
+
+function makeClarifyBlock(conf){
+  const suggestions = conf < LOW_CONF ? CLARIFY_SUGGESTIONS.low : CLARIFY_SUGGESTIONS.vague;
+  const chips = suggestions.map(s=>`<button class="cb-chip" onclick="quickAsk('${s}')">${s}</button>`).join('');
+  return `<div class="clarify-block"><div class="cb-title">⚠️ Low confidence — could you clarify?</div>I'm not quite sure what you're asking. Try one of these:<div class="cb-chips">${chips}</div></div>`;
+}
+
+function makeRelatedBlock(related){
+  if(!related.length) return '';
+  const items = related.map(f=>`<div class="rb-item" onclick="quickAsk('${f.topic}')"><span class="rb-arrow">→</span><span class="rb-q">${f.topic}</span></div>`).join('');
+  return `<div class="related-block"><div class="rb-title">💡 Related Topics</div>${items}</div>`;
+}
+
+function makeEscalateBlock(){
+  return `<div class="escalate-block"><div class="eb-title">🆘 Need more help?</div>Our team can assist you directly:<div class="eb-btns"><a class="eb-btn eb-email" href="mailto:support@sitng.edu.in">✉️ Email Support</a><a class="eb-btn eb-wa" href="https://wa.me/917120000000" target="_blank">💬 WhatsApp</a></div></div>`;
+}
+
+function quickAsk(q){
+  document.getElementById('inp').value=q;
+  send();
+}
+
+function send(){
+  const inp=document.getElementById('inp');
+  const raw=inp.value.trim(); if(!raw)return;
+  addMsg(raw.replace(/</g,'&lt;'),'user');
+  inp.value='';
+  showTyping();
+
+  setTimeout(()=>{
+    removeTyping();
+    const {best,conf}=scoreQuery(raw);
+    updateMeter(conf);
+
+    if(conf >= HIGH_CONF){
+      // High confidence — answer directly with related
+      const related=getRelated(best.id);
+      let html=best.answer;
+      html+=makeRelatedBlock(related);
+      addMsg(html,'bot');
+
+    } else if(conf >= LOW_CONF){
+      // Medium — answer but ask for clarification + escalation
+      let html='';
+      if(best){
+        html=best.answer+'<br><br>';
+      }
+      html+=makeClarifyBlock(conf);
+      html+=makeEscalateBlock();
+      addMsg(html,'bot');
+
+    } else {
+      // Low/zero — full fallback
+      let html=`😕 <b>I couldn't understand your query.</b><br>`;
+      html+=makeClarifyBlock(0);
+      html+=makeEscalateBlock();
+      addMsg(html,'bot');
+    }
+  },700);
+}
+
+document.getElementById('inp').addEventListener('keydown',e=>{ if(e.key==='Enter')send(); });
+window.onload=()=>{
+  setTimeout(()=>addMsg(`🛟 <b>Week 8: Fallback & Escalation System!</b><br><br>Every query is scored for <b>confidence</b>:<br><br>• <span style="color:var(--ok)">●</span> <b>High (≥40%)</b> — Direct answer + related topics<br>• <span style="color:var(--warn)">●</span> <b>Medium (15–40%)</b> — Answer + clarification prompt<br>• <span style="color:var(--err)">●</span> <b>Low (<15%)</b> — Full fallback + escalation<br><br>Try something <b>clear</b> like <i>"fees"</i>, something <b>vague</b> like <i>"help me"</i>, or something <b>unknown</b> like <i>"blah blah"</i>!`,'bot'),300);
+};
+</script>
+</body>
+</html>

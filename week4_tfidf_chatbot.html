@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Week 4 — TF-IDF Retrieval Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0e0a14;
+    --surface: #14101e;
+    --surface2: #1c1628;
+    --border: #2e2545;
+    --accent: #c084fc;
+    --accent2: #a855f7;
+    --user-bubble: #1e1035;
+    --bot-bubble: #160f22;
+    --text: #ede9f8;
+    --text-muted: #7868a0;
+    --green: #4ade80;
+    --blue: #38bdf8;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; }
+  .wrapper { width: 100%; max-width: 820px; display: flex; flex-direction: column; height: 93vh; }
+  .header { display: flex; align-items: center; gap: 12px; padding: 1.2rem 1.5rem; background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: 16px 16px 0 0; }
+  .bot-avatar { width: 42px; height: 42px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .header-info h1 { font-family: var(--font-head); font-size: 1rem; font-weight: 700; }
+  .header-info p { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+  .status-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; display: inline-block; margin-right: 5px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .week-tag { margin-left: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; font-size: 0.65rem; color: var(--accent); letter-spacing: 0.05em; }
+  .main { flex: 1; display: flex; overflow: hidden; border: 1px solid var(--border); border-top: none; border-bottom: none; }
+  .chat-area { flex: 1; background: var(--surface); padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; scroll-behavior: smooth; }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  /* TF-IDF Panel */
+  .tfidf-panel { width: 270px; background: #08050f; border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+  .tfidf-header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.65rem; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+  .tfidf-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse 1.5s infinite; }
+  .tfidf-content { flex: 1; overflow-y: auto; padding: 0.75rem; font-size: 0.67rem; }
+  .tfidf-content::-webkit-scrollbar { width: 3px; }
+  .tfidf-content::-webkit-scrollbar-thumb { background: var(--border); }
+  .tfidf-section { margin-bottom: 1rem; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .tfidf-label { font-size: 0.58rem; color: var(--yellow); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .score-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .score-label { flex-shrink: 0; width: 90px; font-size: 0.6rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .score-bar-wrap { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .score-bar { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .score-val { font-size: 0.58rem; color: var(--text-muted); flex-shrink: 0; width: 34px; text-align: right; }
+  .score-row.best .score-label { color: var(--accent); font-weight: 600; }
+  .score-row.best .score-bar { background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+  .score-row.mid .score-bar { background: var(--blue); opacity: 0.6; }
+  .score-row.low .score-bar { background: var(--border); opacity: 0.5; }
+  .tfidf-token { display: inline-block; background: rgba(192,132,252,0.1); border: 1px solid rgba(192,132,252,0.2); color: var(--accent); border-radius: 4px; padding: 1px 5px; margin: 2px; font-size: 0.62rem; }
+  .tfidf-token.idf-high { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.25); color: var(--green); }
+  .tfidf-token.idf-low { background: rgba(120,104,160,0.1); border-color: rgba(120,104,160,0.2); color: var(--text-muted); }
+  .match-badge { background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.3); color: var(--green); border-radius: 6px; padding: 4px 8px; font-size: 0.68rem; font-weight: 600; }
+  .no-match-badge { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.25); color: var(--red); border-radius: 6px; padding: 4px 8px; font-size: 0.68rem; }
+  .tfidf-empty { color: var(--text-muted); font-style: italic; font-size: 0.65rem; }
+  /* Messages */
+  .msg-row { display: flex; gap: 10px; animation: fadeUp 0.25s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .msg-row.user { flex-direction: row-reverse; }
+  .msg-avatar { width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; margin-top: 2px; }
+  .msg-row.bot .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .msg-row.user .msg-avatar { background: var(--user-bubble); border: 1px solid var(--accent); }
+  .bubble { max-width: 80%; padding: 0.7rem 1rem; border-radius: 12px; font-size: 0.82rem; line-height: 1.6; }
+  .msg-row.bot .bubble { background: var(--bot-bubble); border: 1px solid var(--border); border-top-left-radius: 4px; }
+  .msg-row.user .bubble { background: var(--user-bubble); border: 1px solid rgba(192,132,252,0.25); border-top-right-radius: 4px; }
+  .bubble-time { font-size: 0.6rem; color: var(--text-muted); margin-top: 4px; display: block; }
+  .confidence-bar { margin-top: 6px; height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .confidence-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--green)); border-radius: 2px; transition: width 0.5s; }
+  .confidence-label { font-size: 0.6rem; color: var(--text-muted); margin-top: 3px; }
+  .typing { display: flex; gap: 4px; align-items: center; padding: 4px 2px; }
+  .typing span { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: bounce 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+  .input-area { display: flex; gap: 8px; padding: 1rem 1.2rem; background: var(--surface2); border: 1px solid var(--border); border-top: 1px solid var(--border); border-radius: 0 0 16px 16px; align-items: center; }
+  .input-area input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0.65rem 1rem; color: var(--text); font-family: var(--font-mono); font-size: 0.82rem; outline: none; transition: border-color 0.2s; }
+  .input-area input:focus { border-color: var(--accent); }
+  .input-area input::placeholder { color: var(--text-muted); }
+  .send-btn { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: 10px; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: opacity 0.2s, transform 0.15s; flex-shrink: 0; color: white; }
+  .send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+  @media(max-width:620px) { .tfidf-panel { display: none; } .wrapper { height: 100vh; } .header, .input-area { border-radius: 0; } }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="bot-avatar">📊</div>
+    <div class="header-info">
+      <h1>CampusBot <span style="color:var(--accent);font-size:0.75rem;">+ TF-IDF</span></h1>
+      <p><span class="status-dot"></span>Retrieval-based matching engine active</p>
+    </div>
+    <div class="week-tag">WEEK 4 · TF-IDF</div>
+  </div>
+  <div class="main">
+    <div class="chat-area" id="chatArea"></div>
+    <div class="tfidf-panel">
+      <div class="tfidf-header"><div class="tfidf-dot"></div>TF-IDF Engine</div>
+      <div class="tfidf-content" id="tfidfContent">
+        <div class="tfidf-empty">Type a query to see TF-IDF similarity scores for each FAQ document.</div>
+      </div>
+    </div>
+  </div>
+  <div class="input-area">
+    <input type="text" id="userInput" placeholder="Ask anything — best match retrieved..." autocomplete="off"/>
+    <button class="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<script>
+// ─── FAQ DATASET ─────────────────────────────────────────────
+// Each FAQ has a label and a "document" (keywords + answer text used for TF-IDF)
+const FAQ_DATASET = [
+  {
+    label: "Fees",
+    doc: "fee fees tuition cost payment money charge rate semester annual btech mtech afford pay installment structure",
+    answer: "📋 <b>Fee Structure:</b><br>• B.Tech: ₹2,10,000/year<br>• M.Tech: ₹1,80,000/year<br>• Hostel + Mess: ₹90,000/year<br>Paid in 2 semester installments."
+  },
+  {
+    label: "Admission",
+    doc: "admission apply application enroll enrollment join register intake entry set jee entrance counselling form document verification",
+    answer: "📝 <b>Admission Process:</b><br>1. Online form at symbiosis.ac.in<br>2. SET/JEE entrance exam<br>3. Counselling & verification<br>4. Confirmation payment"
+  },
+  {
+    label: "Exams",
+    doc: "exam examination test assessment paper quiz result marks grade score mid end semester revaluation hall ticket viva practical",
+    answer: "📖 <b>Examination Info:</b><br>• Mid-Sem: Oct & Mar<br>• End-Sem: Nov & May<br>• Results in 3 weeks<br>• Revaluation: 7 days window"
+  },
+  {
+    label: "Hostel",
+    doc: "hostel dorm dormitory accommodation room stay lodge residential housing boarding boys girls ac wifi security mess warden",
+    answer: "🏠 <b>Hostel Info:</b><br>• Separate boys & girls blocks<br>• AC & Non-AC rooms<br>• 24/7 security & Wi-Fi<br>• Mess fee: ₹3,500/month"
+  },
+  {
+    label: "Scholarship",
+    doc: "scholarship merit financial aid stipend waiver discount bursary fellowship grant free reduction fund poverty economic sports",
+    answer: "🏆 <b>Scholarships:</b><br>• Merit (>90%): 25% fee waiver<br>• Sports quota: Up to 50%<br>• Govt SC/ST/OBC schemes"
+  },
+  {
+    label: "Placement",
+    doc: "placement job career internship recruit hire company salary package campus drive offer lpa tcs infosys wipro capgemini",
+    answer: "💼 <b>Placements 2024:</b><br>• Avg: ₹6.2 LPA | Highest: ₹32 LPA<br>• Top recruiters: TCS, Infosys, Wipro<br>• Placement rate: 85%+"
+  },
+  {
+    label: "Library",
+    doc: "library book resource journal study reading digital borrow issue catalogue inflibnet database research periodical reference",
+    answer: "📚 <b>Library:</b><br>• 50,000+ books, 200+ journals<br>• INFLIBNET digital access<br>• Issue: 3 books / 14 days"
+  },
+  {
+    label: "Contact",
+    doc: "contact phone email address reach call helpdesk support enquiry inquiry number location map directions office admin",
+    answer: "📞 <b>Contact:</b><br>Phone: +91-712-XXXXXXX<br>Email: info@sitng.edu.in<br>Helpdesk: support@sitng.edu.in"
+  },
+  {
+    label: "Timings",
+    doc: "timing time schedule hour open close when office working hours duration class college gate library canteen",
+    answer: "🕘 <b>Timings:</b><br>• Classes: 8 AM – 5 PM<br>• Library: 8 AM – 9 PM<br>• Admin: 9:30 AM – 5:30 PM (Mon–Sat)"
+  },
+  {
+    label: "Courses",
+    doc: "course program branch stream department subject syllabus curriculum btech mtech mba mca cse it ece mechanical civil engineering",
+    answer: "🎓 <b>Programs Offered:</b><br>B.Tech: CSE, IT, ECE, Mech, Civil<br>M.Tech: CSE, ECE, Structural<br>MBA, MCA also available"
+  },
+  {
+    label: "Wi-Fi / Lab",
+    doc: "wifi internet network connectivity broadband connection online lab computer system matlab ansys autocad software hardware",
+    answer: "💻 <b>Digital Infrastructure:</b><br>• Campus-wide 1Gbps Wi-Fi<br>• 5 labs, 300+ systems<br>• MATLAB, Ansys, AutoCAD licensed"
+  },
+  {
+    label: "Canteen",
+    doc: "canteen food eat meal lunch dinner breakfast mess cafe cafeteria snack menu veg nonveg price cost rate",
+    answer: "🍽️ <b>Canteen:</b><br>• Veg & non-veg daily<br>• Mess subscription: ₹3,500/month<br>• Open 7:30 AM – 8:00 PM"
+  }
+];
+
+const STOPWORDS = new Set(["a","an","the","is","it","in","on","at","to","for","of","and","or","but","be","was","are","were","this","that","i","me","my","we","you","he","she","they","do","does","did","have","has","had","will","would","can","could","should","may","might","what","when","where","which","who","how","why","about","with","from","by","its","their","our","your","just","so","if","than","also","too","here","any","all","get","tell","know","please","want","need"]);
+
+// ─── TF-IDF IMPLEMENTATION ───────────────────────────────────
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g,'').trim().split(/\s+/).filter(w => w && !STOPWORDS.has(w));
+}
+
+// Pre-tokenize all documents
+const CORPUS = FAQ_DATASET.map(faq => tokenize(faq.doc));
+const N = CORPUS.length;
+
+// Build IDF
+function buildIDF(corpus) {
+  const df = {};
+  for (const doc of corpus) {
+    const unique = new Set(doc);
+    for (const term of unique) df[term] = (df[term] || 0) + 1;
+  }
+  const idf = {};
+  for (const term in df) idf[term] = Math.log((N + 1) / (df[term] + 1)) + 1; // smooth IDF
+  return idf;
+}
+const IDF = buildIDF(CORPUS);
+
+function tf(tokens) {
+  const freq = {};
+  for (const t of tokens) freq[t] = (freq[t] || 0) + 1;
+  const max = Math.max(...Object.values(freq), 1);
+  const result = {};
+  for (const t in freq) result[t] = freq[t] / max;
+  return result;
+}
+
+function tfidfVector(tokens) {
+  const tfv = tf(tokens);
+  const vec = {};
+  for (const t in tfv) vec[t] = tfv[t] * (IDF[t] || Math.log((N + 1) / 1) + 1);
+  return vec;
+}
+
+function cosineSim(vecA, vecB) {
+  let dot = 0, magA = 0, magB = 0;
+  const allTerms = new Set([...Object.keys(vecA), ...Object.keys(vecB)]);
+  for (const t of allTerms) {
+    const a = vecA[t] || 0, b = vecB[t] || 0;
+    dot += a * b; magA += a * a; magB += b * b;
+  }
+  if (magA === 0 || magB === 0) return 0;
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+function retrieveBest(query) {
+  const qTokens = tokenize(query);
+  if (qTokens.length === 0) return { best: null, scores: [], qTokens };
+
+  const qVec = tfidfVector(qTokens);
+  const scores = CORPUS.map((docTokens, i) => {
+    const dVec = tfidfVector(docTokens);
+    return { index: i, label: FAQ_DATASET[i].label, score: cosineSim(qVec, dVec) };
+  });
+  scores.sort((a, b) => b.score - a.score);
+
+  const THRESHOLD = 0.08;
+  const best = scores[0].score >= THRESHOLD ? scores[0] : null;
+  return { best, scores, qTokens, qVec };
+}
+
+// ─── DEBUG PANEL ─────────────────────────────────────────────
+function updateTFIDFPanel(result) {
+  const { best, scores, qTokens, qVec } = result;
+  const panel = document.getElementById('tfidfContent');
+  let html = '';
+
+  // Query tokens
+  const topTerms = Object.entries(qVec || {}).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  html += `<div class="tfidf-section"><div class="tfidf-label">① Query Tokens</div><div>${qTokens.map(t => {
+    const idfVal = IDF[t] || 0;
+    const cls = idfVal > 2.5 ? 'idf-high' : idfVal < 1.2 ? 'idf-low' : '';
+    return `<span class="tfidf-token ${cls}">${t}</span>`;
+  }).join('') || '<span class="tfidf-empty">no meaningful tokens</span>'}</div></div>`;
+
+  if (topTerms.length > 0) {
+    html += `<div class="tfidf-section"><div class="tfidf-label">② Top TF-IDF Weights</div>`;
+    const maxW = topTerms[0][1] || 1;
+    for (const [term, weight] of topTerms) {
+      const pct = Math.round((weight / maxW) * 100);
+      html += `<div class="score-row"><div class="score-label">${term}</div><div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%;background:var(--accent)"></div></div><div class="score-val">${weight.toFixed(3)}</div></div>`;
+    }
+    html += '</div>';
+  }
+
+  // Cosine similarity scores
+  const maxScore = scores[0]?.score || 0.001;
+  html += `<div class="tfidf-section"><div class="tfidf-label">③ Cosine Similarity Scores</div>`;
+  scores.forEach((s, i) => {
+    const pct = maxScore > 0 ? Math.round((s.score / maxScore) * 100) : 0;
+    const cls = i === 0 ? 'best' : s.score > 0.04 ? 'mid' : 'low';
+    const color = i === 0 ? 'linear-gradient(90deg,var(--accent2),var(--accent))' : s.score > 0.04 ? 'var(--blue)' : 'var(--border)';
+    html += `<div class="score-row ${cls}">
+      <div class="score-label">${i===0?'★ ':''}${s.label}</div>
+      <div class="score-bar-wrap"><div class="score-bar" style="width:${pct}%;background:${color}"></div></div>
+      <div class="score-val">${s.score.toFixed(3)}</div>
+    </div>`;
+  });
+  html += '</div>';
+
+  // Result
+  if (best) {
+    html += `<div class="tfidf-section"><div class="tfidf-label">④ Best Match</div><div class="match-badge">✅ ${best.label} (${(best.score*100).toFixed(1)}%)</div></div>`;
+  } else {
+    html += `<div class="tfidf-section"><div class="tfidf-label">④ Best Match</div><div class="no-match-badge">❌ Below threshold</div></div>`;
+  }
+
+  panel.innerHTML = html;
+}
+
+// ─── MESSAGING ───────────────────────────────────────────────
+function getTime() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+
+function addMessage(content, type, confidence = null) {
+  const area = document.getElementById('chatArea');
+  const row = document.createElement('div'); row.className = `msg-row ${type}`;
+  const avatar = document.createElement('div'); avatar.className = 'msg-avatar'; avatar.textContent = type === 'bot' ? '📊' : '👤';
+  const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.innerHTML = content;
+
+  if (confidence !== null && type === 'bot') {
+    const pct = Math.min(100, Math.round(confidence * 100));
+    bubble.innerHTML += `<div class="confidence-bar"><div class="confidence-fill" style="width:${pct}%"></div></div><div class="confidence-label">Confidence: ${pct}%</div>`;
+  }
+  const time = document.createElement('span'); time.className = 'bubble-time'; time.textContent = getTime();
+  bubble.appendChild(time);
+  row.appendChild(avatar); row.appendChild(bubble);
+  area.appendChild(row); area.scrollTop = area.scrollHeight;
+}
+
+function showTyping() {
+  const area = document.getElementById('chatArea');
+  const row = document.createElement('div'); row.className = 'msg-row bot'; row.id = 'typing-indicator';
+  const av = document.createElement('div'); av.className = 'msg-avatar'; av.textContent = '📊';
+  const b = document.createElement('div'); b.className = 'bubble';
+  b.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  row.appendChild(av); row.appendChild(b);
+  area.appendChild(row); area.scrollTop = area.scrollHeight;
+}
+function removeTyping() { const el = document.getElementById('typing-indicator'); if(el) el.remove(); }
+
+function sendMessage() {
+  const input = document.getElementById('userInput');
+  const raw = input.value.trim();
+  if (!raw) return;
+
+  addMessage(raw.replace(/</g,'&lt;'), 'user');
+  input.value = '';
+
+  const result = retrieveBest(raw);
+  updateTFIDFPanel(result);
+  console.log('[Week 4 TF-IDF]', result);
+
+  showTyping();
+  setTimeout(() => {
+    removeTyping();
+    if (result.best) {
+      const faq = FAQ_DATASET[result.best.index];
+      addMessage(faq.answer, 'bot', result.best.score);
+    } else {
+      addMessage("🤔 No FAQ matched your query with sufficient confidence.<br>Try: <b>fees, admission, exams, hostel, placement, library, canteen, Wi-Fi</b>", 'bot', 0);
+    }
+  }, 700);
+}
+
+document.getElementById('userInput').addEventListener('keydown', e => { if(e.key === 'Enter') sendMessage(); });
+
+window.onload = () => {
+  setTimeout(() => {
+    addMessage(`📊 <b>Week 4: TF-IDF Retrieval Engine!</b><br><br>Unlike keyword matching, this bot uses <b>Term Frequency × Inverse Document Frequency</b> to compute similarity scores between your query and all FAQ documents.<br><br>➜ Watch the <b>TF-IDF panel</b> for live cosine similarity scores.<br>➜ The highest-scoring FAQ is returned as the answer.<br><br>Try: <i>"How much does it cost to study here?"</i>`, 'bot');
+  }, 300);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Week 10 — Analytics Dashboard Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#05070d;--s1:#090d16;--s2:#0e1420;--s3:#13192a;--border:#1a2338;
+  --text:#c8d4ec;--muted:#3a4e70;
+  --acc:#3b82f6;--acc2:#2563eb;
+  --ok:#10b981;--warn:#f59e0b;--err:#ef4444;--purple:#8b5cf6;
+  --font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1rem}
+.page-head{display:flex;align-items:center;gap:12px;padding:.8rem 1.2rem;margin-bottom:1rem;width:100%;max-width:1100px}
+.page-logo{width:38px;height:38px;background:linear-gradient(135deg,var(--acc),var(--acc2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem}
+.page-title h1{font-size:.95rem;font-weight:700}
+.page-title p{font-size:.65rem;color:var(--muted);font-family:var(--mono)}
+.wtag{margin-left:auto;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:3px 10px;font-size:.6rem;color:var(--acc);font-family:var(--mono)}
+.nav-btn{background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 12px;font-size:.72rem;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.nav-btn.active,.nav-btn:hover{background:var(--acc);border-color:var(--acc);color:#fff}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:1fr 480px;gap:14px;width:100%;max-width:1100px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+
+/* ─── ANALYTICS PANEL ──────────────────────────── */
+.analytics{display:flex;flex-direction:column;gap:12px}
+/* Stat cards */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem}
+.sc-val{font-size:1.6rem;font-weight:700;line-height:1;font-family:var(--mono)}
+.sc-lbl{font-size:.62rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.05em}
+.sc-delta{font-size:.62rem;margin-top:6px;font-family:var(--mono)}
+/* Charts */
+.chart-card{background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:1rem}
+.cc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem}
+.cc-title{font-size:.75rem;font-weight:600;color:var(--text)}
+.cc-badge{font-size:.58rem;font-family:var(--mono);padding:2px 7px;border-radius:5px}
+canvas{max-height:180px}
+
+/* Top questions table */
+.tq-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.tq-row:last-child{border-bottom:none}
+.tq-rank{width:20px;font-size:.62rem;color:var(--muted);font-family:var(--mono);flex-shrink:0}
+.tq-bar-wrap{flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.tq-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .6s ease}
+.tq-label{font-size:.72rem;color:var(--text);min-width:90px}
+.tq-count{font-size:.62rem;font-family:var(--mono);color:var(--muted);flex-shrink:0}
+
+/* Unanswered */
+.uq-item{background:var(--s2);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:6px 10px;font-size:.72rem;display:flex;justify-content:space-between;align-items:center;animation:fadeIn .3s ease}
+.uq-q{color:var(--text)}
+.uq-t{font-size:.58rem;font-family:var(--mono);color:var(--muted)}
+
+/* ─── CHAT PANEL ────────────────────────────────── */
+.chat-panel{background:var(--s1);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;max-height:680px}
+.chat-head{padding:.8rem 1.1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px}
+.ch-av{width:32px;height:32px;background:linear-gradient(135deg,var(--acc),var(--acc2));border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+.ch-title{font-size:.82rem;font-weight:700}
+.ch-sub{font-size:.6rem;color:var(--muted)}
+.pulse{display:inline-block;width:6px;height:6px;background:var(--ok);border-radius:50%;margin-right:4px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.chat-msgs{flex:1;padding:1rem;overflow-y:auto;display:flex;flex-direction:column;gap:.8rem;scroll-behavior:smooth}
+.chat-msgs::-webkit-scrollbar{width:3px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border)}
+.row{display:flex;gap:8px;animation:up .2s ease}
+@keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.row.u{flex-direction:row-reverse}
+.av{width:28px;height:28px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.75rem;margin-top:2px}
+.row.b .av{background:linear-gradient(135deg,var(--acc),var(--acc2))}
+.row.u .av{background:var(--s3);border:1px solid var(--border)}
+.bub{max-width:80%;padding:.6rem .85rem;border-radius:10px;font-size:.78rem;line-height:1.6}
+.row.b .bub{background:var(--s2);border:1px solid var(--border);border-top-left-radius:3px}
+.row.u .bub{background:#0e1830;border:1px solid rgba(59,130,246,.25);border-top-right-radius:3px}
+.bt{font-size:.55rem;color:var(--muted);margin-top:3px;display:block}
+.dots{display:flex;gap:4px;align-items:center;padding:3px 0}
+.dots span{width:5px;height:5px;background:var(--muted);border-radius:50%;animation:b 1.2s infinite}
+.dots span:nth-child(2){animation-delay:.2s}
+.dots span:nth-child(3){animation-delay:.4s}
+@keyframes b{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+.chat-input{display:flex;gap:6px;padding:.7rem .9rem;border-top:1px solid var(--border);background:var(--s2);align-items:center}
+.chat-inp{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.5rem .8rem;color:var(--text);font-family:var(--font);font-size:.78rem;outline:none;transition:border-color .2s}
+.chat-inp:focus{border-color:var(--acc)}
+.chat-inp::placeholder{color:var(--muted)}
+.snd{background:linear-gradient(135deg,var(--acc),var(--acc2));border:none;border-radius:8px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;color:#fff}
+.snd:hover{opacity:.85;transform:scale(1.05)}
+</style>
+</head>
+<body>
+<div class="page-head">
+  <div class="page-logo">📊</div>
+  <div class="page-title">
+    <h1>CampusBot Analytics Dashboard</h1>
+    <p>Real-time query analytics · unanswered tracking · visual insights</p>
+  </div>
+  <div class="wtag">WEEK 10 · ANALYTICS</div>
+</div>
+
+<div class="layout">
+  <!-- Analytics side -->
+  <div class="analytics">
+    <!-- Stat cards -->
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="sc-val" id="statTotal" style="color:var(--acc)">0</div>
+        <div class="sc-lbl">Total Queries</div>
+        <div class="sc-delta" style="color:var(--ok)" id="statSession">Session: 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-val" id="statAnswered" style="color:var(--ok)">0</div>
+        <div class="sc-lbl">Answered</div>
+        <div class="sc-delta" style="color:var(--ok)" id="statRate">Rate: 0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-val" id="statUnanswered" style="color:var(--err)">0</div>
+        <div class="sc-lbl">Unanswered</div>
+        <div class="sc-delta" style="color:var(--err)" id="statMiss">Miss rate: 0%</div>
+      </div>
+    </div>
+
+    <!-- Query Volume Chart -->
+    <div class="chart-card">
+      <div class="cc-head">
+        <span class="cc-title">📈 Query Volume Over Time</span>
+        <span class="cc-badge" style="background:rgba(59,130,246,.1);color:var(--acc);border:1px solid rgba(59,130,246,.2)">Live</span>
+      </div>
+      <canvas id="volumeChart"></canvas>
+    </div>
+
+    <!-- Top questions -->
+    <div class="chart-card">
+      <div class="cc-head">
+        <span class="cc-title">🔥 Most Asked Topics</span>
+        <span class="cc-badge" id="topBadge" style="background:rgba(16,185,129,.1);color:var(--ok);border:1px solid rgba(16,185,129,.2)">0 topics</span>
+      </div>
+      <div id="topQList"><div style="color:var(--muted);font-size:.7rem;font-style:italic;padding:.5rem 0">No queries yet — start chatting!</div></div>
+    </div>
+
+    <!-- Intent distribution donut -->
+    <div class="chart-card">
+      <div class="cc-head">
+        <span class="cc-title">🎯 Topic Distribution</span>
+        <span class="cc-badge" style="background:rgba(139,92,246,.1);color:var(--purple);border:1px solid rgba(139,92,246,.2)">By topic</span>
+      </div>
+      <canvas id="donutChart" style="max-height:160px"></canvas>
+    </div>
+
+    <!-- Unanswered queries -->
+    <div class="chart-card">
+      <div class="cc-head">
+        <span class="cc-title">❌ Unanswered Queries</span>
+        <span class="cc-badge" id="uqBadge" style="background:rgba(239,68,68,.1);color:var(--err);border:1px solid rgba(239,68,68,.2)">0</span>
+      </div>
+      <div id="uqList"><div style="color:var(--muted);font-size:.7rem;font-style:italic;padding:.3rem 0">None yet — great!</div></div>
+    </div>
+  </div>
+
+  <!-- Chat side -->
+  <div class="chat-panel">
+    <div class="chat-head">
+      <div class="ch-av">📊</div>
+      <div>
+        <div class="ch-title">CampusBot</div>
+        <div class="ch-sub"><span class="pulse"></span>Analytics-enabled</div>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chatMsgs"></div>
+    <div class="chat-input">
+      <input class="chat-inp" id="inp" placeholder="Ask anything — data is logged in real time..." autocomplete="off"/>
+      <button class="snd" onclick="send()">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATA STORE ───────────────────────────────────────────────
+let LOG = [];      // {ts, query, topic, answered}
+let TIMELINE = []; // [{label, count}] — rolling 10-message window
+let timelineBuffer = 0;
+
+// ─── FAQ DATASET ──────────────────────────────────────────────
+const FAQS = [
+  { topic:'Fees',          kws:['fee','fees','tuition','cost','payment','money','pay','charge'], answer:'📋 <b>Fee Structure:</b><br>• B.Tech: ₹2,10,000/year<br>• Hostel: ₹90,000/year<br>Paid in 2 installments.' },
+  { topic:'Admission',     kws:['admission','apply','enroll','join','register','entry','set','jee'], answer:'📝 <b>Admission:</b><br>1. Apply at symbiosis.ac.in<br>2. SET/JEE entrance<br>3. Counselling → Confirm' },
+  { topic:'Exams',         kws:['exam','test','result','marks','grade','mid','end','revaluation','hall ticket'], answer:'📖 <b>Exams:</b><br>Mid-Sem: Oct & Mar<br>End-Sem: Nov & May<br>Results in 3 weeks' },
+  { topic:'Hostel',        kws:['hostel','dorm','room','accommodation','stay','mess','warden','boarding'], answer:'🏠 <b>Hostel:</b><br>AC & Non-AC rooms<br>24/7 security & Wi-Fi<br>Mess: ₹3,500/month' },
+  { topic:'Scholarships',  kws:['scholarship','merit','waiver','financial','grant','stipend','aid','discount'], answer:'🏆 <b>Scholarships:</b><br>Merit >90%: 25% waiver<br>Sports: Up to 50%<br>Govt SC/ST/OBC via NSP' },
+  { topic:'Placement',     kws:['placement','job','internship','salary','package','company','recruit','hire'], answer:'💼 <b>Placements:</b><br>Avg: ₹6.2 LPA<br>Highest: ₹32 LPA<br>Rate: 85%+' },
+  { topic:'Timetable',     kws:['timetable','schedule','class','lecture','timing','slot','period'], answer:'🕐 <b>Timetable:</b><br>Morning: 8 AM–12 PM<br>Afternoon: 1–5 PM' },
+  { topic:'Library',       kws:['library','book','borrow','journal','resource','catalogue'], answer:'📚 <b>Library:</b><br>50,000+ books, 200+ journals<br>Issue: 3 books / 14 days' },
+  { topic:'Contact',       kws:['contact','phone','email','address','helpdesk','support','reach'], answer:'📞 <b>Contact:</b><br>Phone: +91-712-XXXXXXX<br>Email: info@sitng.edu.in' },
+  { topic:'Canteen',       kws:['canteen','food','eat','meal','mess','cafe','snack','menu'], answer:'🍽️ <b>Canteen:</b><br>Veg & Non-Veg daily<br>Open 7:30 AM–8 PM' },
+  { topic:'Wi-Fi/Lab',     kws:['wifi','internet','lab','computer','network','connectivity'], answer:'💻 <b>Campus Tech:</b><br>1Gbps campus Wi-Fi<br>5 labs, 300+ systems<br>MATLAB, Ansys, AutoCAD' }
+];
+
+function getAnswer(raw){
+  const lower=raw.toLowerCase();
+  for(const faq of FAQS){
+    if(faq.kws.some(k=>lower.includes(k))) return faq;
+  }
+  return null;
+}
+
+// ─── CHART SETUP ─────────────────────────────────────────────
+const CHART_COLORS=['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899','#f97316','#a3e635','#e879f9','#fbbf24'];
+Chart.defaults.color='#3a4e70';
+Chart.defaults.borderColor='#1a2338';
+
+// Volume chart
+const volCtx=document.getElementById('volumeChart').getContext('2d');
+const volChart=new Chart(volCtx,{
+  type:'line',
+  data:{ labels:[], datasets:[{label:'Queries',data:[],fill:true,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',tension:.4,pointRadius:3,pointBackgroundColor:'#3b82f6',borderWidth:2}]},
+  options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1a2338'},ticks:{font:{size:9}}},y:{grid:{color:'#1a2338'},ticks:{font:{size:9},stepSize:1},beginAtZero:true}},animation:{duration:400}}
+});
+
+// Donut chart
+const donutCtx=document.getElementById('donutChart').getContext('2d');
+const donutChart=new Chart(donutCtx,{
+  type:'doughnut',
+  data:{labels:[],datasets:[{data:[],backgroundColor:CHART_COLORS,borderWidth:2,borderColor:'#090d16',hoverOffset:4}]},
+  options:{responsive:true,plugins:{legend:{position:'right',labels:{font:{size:9},padding:8,boxWidth:10}}},animation:{duration:400}}
+});
+
+// ─── ANALYTICS UPDATES ────────────────────────────────────────
+function logQuery(raw, faq){
+  const now=new Date();
+  const entry={
+    ts: now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),
+    query: raw,
+    topic: faq ? faq.topic : null,
+    answered: !!faq
+  };
+  LOG.push(entry);
+
+  // Timeline — group by every 1 message for demo, rolling 10 points
+  timelineBuffer++;
+  const label=`Q${LOG.length}`;
+  if(TIMELINE.length>=12){ TIMELINE.shift(); volChart.data.labels.shift(); volChart.data.datasets[0].data.shift(); }
+  TIMELINE.push({label,count:1});
+  volChart.data.labels.push(label);
+  // Cumulative or per-turn — use running total for smoother viz
+  volChart.data.datasets[0].data.push(LOG.length);
+  volChart.update('none');
+
+  updateStats();
+  updateTopQ();
+  updateDonut();
+  updateUnanswered();
+}
+
+function updateStats(){
+  const total=LOG.length;
+  const answered=LOG.filter(l=>l.answered).length;
+  const unanswered=total-answered;
+  const rate=total>0?Math.round(answered/total*100):0;
+  const missRate=total>0?Math.round(unanswered/total*100):0;
+  document.getElementById('statTotal').textContent=total;
+  document.getElementById('statSession').textContent=`Session: ${total}`;
+  document.getElementById('statAnswered').textContent=answered;
+  document.getElementById('statRate').textContent=`Rate: ${rate}%`;
+  document.getElementById('statUnanswered').textContent=unanswered;
+  document.getElementById('statMiss').textContent=`Miss: ${missRate}%`;
+}
+
+function updateTopQ(){
+  const topicCounts={};
+  for(const l of LOG){ if(l.topic) topicCounts[l.topic]=(topicCounts[l.topic]||0)+1; }
+  const sorted=Object.entries(topicCounts).sort((a,b)=>b[1]-a[1]);
+  const maxCount=sorted[0]?.[1]||1;
+  document.getElementById('topBadge').textContent=`${sorted.length} topics`;
+  if(!sorted.length){ document.getElementById('topQList').innerHTML=`<div style="color:var(--muted);font-size:.7rem;font-style:italic;padding:.5rem 0">No queries yet</div>`; return; }
+  document.getElementById('topQList').innerHTML=sorted.slice(0,7).map(([topic,count],i)=>`
+    <div class="tq-row">
+      <span class="tq-rank">${i+1}</span>
+      <span class="tq-label">${topic}</span>
+      <div class="tq-bar-wrap"><div class="tq-bar" style="width:${Math.round(count/maxCount*100)}%"></div></div>
+      <span class="tq-count">${count}×</span>
+    </div>`).join('');
+}
+
+function updateDonut(){
+  const topicCounts={};
+  for(const l of LOG){ if(l.topic) topicCounts[l.topic]=(topicCounts[l.topic]||0)+1; }
+  const sorted=Object.entries(topicCounts).sort((a,b)=>b[1]-a[1]).slice(0,9);
+  donutChart.data.labels=sorted.map(([t])=>t);
+  donutChart.data.datasets[0].data=sorted.map(([,c])=>c);
+  donutChart.update('none');
+}
+
+function updateUnanswered(){
+  const uq=LOG.filter(l=>!l.answered);
+  document.getElementById('uqBadge').textContent=uq.length;
+  if(!uq.length){ document.getElementById('uqList').innerHTML=`<div style="color:var(--muted);font-size:.7rem;font-style:italic;padding:.3rem 0">None yet — great!</div>`; return; }
+  document.getElementById('uqList').innerHTML=uq.slice(-5).reverse().map(l=>`
+    <div class="uq-item">
+      <span class="uq-q">"${l.query.replace(/</g,'&lt;').slice(0,40)}${l.query.length>40?'…':''}"</span>
+      <span class="uq-t">${l.ts}</span>
+    </div>`).join('');
+}
+
+// ─── MESSAGING ───────────────────────────────────────────────
+function ts(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function addMsg(html, type){ const a=document.getElementById('chatMsgs'); const r=document.createElement('div'); r.className=`row ${type==='bot'?'b':'u'}`; const av=document.createElement('div'); av.className='av'; av.textContent=type==='bot'?'📊':'👤'; const b=document.createElement('div'); b.className='bub'; b.innerHTML=html; const t=document.createElement('span'); t.className='bt'; t.textContent=ts(); b.appendChild(t); r.appendChild(av); r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function showTyping(){ const a=document.getElementById('chatMsgs'); const r=document.createElement('div'); r.className='row b'; r.id='typ'; const av=document.createElement('div'); av.className='av'; av.textContent='📊'; const b=document.createElement('div'); b.className='bub'; b.innerHTML='<div class="dots"><span></span><span></span><span></span></div>'; r.appendChild(av); r.appendChild(b); a.appendChild(r); a.scrollTop=a.scrollHeight; }
+function removeTyping(){ const e=document.getElementById('typ'); if(e)e.remove(); }
+
+function send(){
+  const inp=document.getElementById('inp');
+  const raw=inp.value.trim(); if(!raw)return;
+  addMsg(raw.replace(/</g,'&lt;'),'user');
+  inp.value='';
+  showTyping();
+  setTimeout(()=>{
+    removeTyping();
+    const faq=getAnswer(raw);
+    logQuery(raw,faq);
+    if(faq){
+      addMsg(faq.answer,'bot');
+    } else {
+      addMsg(`🤔 <b>No match found.</b> This query has been logged as unanswered.<br><br>Try: <b>fees, exams, hostel, placement, scholarship, timetable</b>`,'bot');
+    }
+  },650);
+}
+
+document.getElementById('inp').addEventListener('keydown',e=>{ if(e.key==='Enter')send(); });
+
+// Seed some demo data
+const DEMO = ['fees','how to apply for admission','hostel room','scholarship for merit','placement package','exam schedule','library books','when is timetable','contact email','xyz nonsense query'];
+function seedDemo(){
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i>=DEMO.length){ clearInterval(iv); return; }
+    const raw=DEMO[i++];
+    const faq=getAnswer(raw);
+    logQuery(raw,faq);
+  },80);
+}
+
+window.onload=()=>{
+  seedDemo();
+  setTimeout(()=>{
+    addMsg(`📊 <b>Week 10: Analytics Dashboard!</b><br><br>Every query is logged and visualized in real time:<br>• <b>Total / Answered / Unanswered</b> stats<br>• <b>Query volume</b> line chart<br>• <b>Topic distribution</b> donut chart<br>• <b>Top asked questions</b> leaderboard<br>• <b>Unanswered queries</b> log<br><br>The dashboard is pre-seeded with demo data. Start asking to add your own!`,'bot');
+  },600);
+};
+</script>
+</body>
+</html>

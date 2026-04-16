@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Week 1 — FAQ Chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #151820;
+    --surface2: #1c2030;
+    --border: #2a2f42;
+    --accent: #6c8cff;
+    --accent2: #a78bfa;
+    --user-bubble: #1e2d5a;
+    --bot-bubble: #1a1f2e;
+    --text: #e8eaf0;
+    --text-muted: #7880a0;
+    --green: #4ade80;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .wrapper {
+    width: 100%;
+    max-width: 680px;
+    display: flex;
+    flex-direction: column;
+    height: 92vh;
+  }
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 1.2rem 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+  }
+  .bot-avatar {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .header-info h1 {
+    font-family: var(--font-head);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .header-info p {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .week-tag {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 0.65rem;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+  }
+  /* Chat area */
+  .chat-area {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    scroll-behavior: smooth;
+  }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  /* Messages */
+  .msg-row {
+    display: flex;
+    gap: 10px;
+    animation: fadeUp 0.25s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg-row.user { flex-direction: row-reverse; }
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    margin-top: 2px;
+  }
+  .msg-row.bot .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+  .msg-row.user .msg-avatar { background: var(--user-bubble); border: 1px solid var(--accent); }
+  .bubble {
+    max-width: 78%;
+    padding: 0.7rem 1rem;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    position: relative;
+  }
+  .msg-row.bot .bubble {
+    background: var(--bot-bubble);
+    border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+    color: var(--text);
+  }
+  .msg-row.user .bubble {
+    background: var(--user-bubble);
+    border: 1px solid rgba(108,140,255,0.25);
+    border-top-right-radius: 4px;
+    color: var(--text);
+  }
+  .bubble-time {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: block;
+  }
+  /* Suggestion chips */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-mono);
+  }
+  .chip:hover { background: var(--accent); color: #fff; }
+  /* Input area */
+  .input-area {
+    display: flex;
+    gap: 8px;
+    padding: 1rem 1.2rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+    align-items: center;
+  }
+  .input-area input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-area input:focus { border-color: var(--accent); }
+  .input-area input::placeholder { color: var(--text-muted); }
+  .send-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 10px;
+    width: 42px; height: 42px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    transition: opacity 0.2s, transform 0.15s;
+    flex-shrink: 0;
+  }
+  .send-btn:hover { opacity: 0.85; transform: scale(1.05); }
+  .send-btn:active { transform: scale(0.97); }
+  /* Typing indicator */
+  .typing { display: flex; gap: 4px; align-items: center; padding: 4px 2px; }
+  .typing span {
+    width: 6px; height: 6px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%,60%,100% { transform: translateY(0); }
+    30% { transform: translateY(-5px); }
+  }
+  @media(max-width:500px) {
+    .wrapper { height: 100vh; border-radius: 0; }
+    .header, .chat-area, .input-area { border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="bot-avatar">🎓</div>
+    <div class="header-info">
+      <h1>CampusBot</h1>
+      <p><span class="status-dot"></span>Online · Symbiosis Institute of Technology</p>
+    </div>
+    <div class="week-tag">WEEK 1 · RULE-BASED</div>
+  </div>
+
+  <div class="chat-area" id="chatArea"></div>
+
+  <div class="input-area">
+    <input type="text" id="userInput" placeholder="Ask about fees, admission, exams..." autocomplete="off"/>
+    <button class="send-btn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<script>
+// ─── FAQ DATA ───────────────────────────────────────────────
+const faqs = [
+  {
+    keywords: ["fee","fees","tuition","cost","payment","how much"],
+    answer: "📋 <b>Fee Structure:</b><br>• B.Tech (per year): ₹2,10,000<br>• M.Tech (per year): ₹1,80,000<br>• Hostel + Mess: ₹90,000/year<br><br>Fees are payable in two installments each semester."
+  },
+  {
+    keywords: ["admission","apply","application","enroll","enrollment","join"],
+    answer: "📝 <b>Admission Process:</b><br>1. Fill online form at symbiosis.ac.in<br>2. Appear for SET/JEE entrance exam<br>3. Attend counselling & document verification<br>4. Pay confirmation fees<br><br>Applications open every March–April."
+  },
+  {
+    keywords: ["timing","time","schedule","hour","office hour","open"],
+    answer: "🕘 <b>College Timings:</b><br>• Classes: 8:00 AM – 5:00 PM<br>• Library: 8:00 AM – 9:00 PM<br>• Admin Office: 9:30 AM – 5:30 PM (Mon–Sat)<br>• Canteen: 7:30 AM – 8:00 PM"
+  },
+  {
+    keywords: ["contact","phone","email","address","reach","helpdesk"],
+    answer: "📞 <b>Contact Information:</b><br>• Phone: +91-712-XXXXXXX<br>• Email: info@sitng.edu.in<br>• Address: SIT Campus, Nagpur – 440014<br>• Helpdesk: support@sitng.edu.in"
+  },
+  {
+    keywords: ["hostel","dorm","accommodation","room","stay","residential"],
+    answer: "🏠 <b>Hostel Facilities:</b><br>• Separate boys & girls hostels<br>• AC & Non-AC rooms available<br>• 24/7 security & Wi-Fi<br>• In/out by 9:00 PM (weekdays)<br>• Monthly mess fee: ₹3,500"
+  },
+  {
+    keywords: ["scholarship","merit","financial aid","stipend","waiver"],
+    answer: "🏆 <b>Scholarships Available:</b><br>• Merit Scholarship (>90% in 12th): 25% fee waiver<br>• Sports Quota: Up to 50% waiver<br>• Government SC/ST/OBC schemes<br>• Symbiosis Excellence Award (top 5 rank holders)"
+  },
+  {
+    keywords: ["exam","examination","test","assessment","paper","result"],
+    answer: "📖 <b>Examination Info:</b><br>• Mid-Sem: October & March<br>• End-Sem: November & May<br>• Results: 3 weeks after exams<br>• Revaluation form available within 7 days of result<br>• Hall tickets issued 5 days prior"
+  },
+  {
+    keywords: ["course","branch","program","department","stream","subject"],
+    answer: "🎓 <b>Programs Offered:</b><br>B.Tech: CSE, IT, ECE, Mechanical, Civil<br>M.Tech: CSE, ECE, Structural Engg.<br>MBA, MCA also available<br><br>All programs are AICTE & NBA approved."
+  },
+  {
+    keywords: ["placement","job","company","recruit","internship","career"],
+    answer: "💼 <b>Placements 2024:</b><br>• Avg Package: ₹6.2 LPA<br>• Highest Package: ₹32 LPA<br>• Top Recruiters: TCS, Infosys, Wipro, Capgemini, Persistent<br>• Placement rate: 85%+<br>• Internship portal opens in Jan & July"
+  },
+  {
+    keywords: ["library","book","resource","journal","digital","e-library"],
+    answer: "📚 <b>Library Services:</b><br>• 50,000+ books, 200+ journals<br>• 24/7 digital access via INFLIBNET<br>• Book issue: 3 books / 14 days<br>• Silent study zones available<br>• Online catalog: lib.sitng.edu.in"
+  },
+  {
+    keywords: ["wifi","internet","network","connectivity","lab","computer"],
+    answer: "💻 <b>Digital Infrastructure:</b><br>• Campus-wide 1Gbps Wi-Fi<br>• 5 computer labs (300+ systems)<br>• MATLAB, Ansys, AutoCAD licensed<br>• Cloud lab access via AWS Academy"
+  },
+  {
+    keywords: ["sport","gym","ground","fitness","club","activity","extra"],
+    answer: "⚽ <b>Sports & Activities:</b><br>• Cricket, Football, Badminton, Chess<br>• Fully equipped gymnasium<br>• Annual sports fest: SPARDHA<br>• Cultural fest: SYMBIOZA<br>• 20+ technical & cultural clubs"
+  },
+  {
+    keywords: ["holiday","vacation","break","leave","calendar","off"],
+    answer: "📅 <b>Academic Calendar:</b><br>• Diwali Break: Oct 28 – Nov 2<br>• Winter Break: Dec 20 – Jan 2<br>• Holi Break: Mar (2 days)<br>• Summer Vacation: May 15 – July 14<br>• Total working days: ~200/year"
+  },
+  {
+    keywords: ["canteen","food","mess","cafe","eat","lunch","meal"],
+    answer: "🍽️ <b>Food Services:</b><br>• Main canteen + 2 mini cafes<br>• Veg & non-veg options daily<br>• Monthly mess subscription: ₹3,500<br>• Special diet requests accommodated<br>• Open 7:30 AM – 8:00 PM"
+  },
+  {
+    keywords: ["hello","hi","hey","greet","help","start","what can you do"],
+    answer: "👋 <b>Hello! I'm CampusBot.</b><br>I can answer your questions about:<br><br>• Fees & Scholarships<br>• Admissions & Courses<br>• Exams & Results<br>• Hostel & Campus Life<br>• Placements & Internships<br><br>Type your question below!"
+  }
+];
+
+const defaultMsg = "🤔 I'm not sure about that yet. You can ask me about:<br><b>fees, admission, exams, hostel, placements, library, timings, or contact info.</b><br><br>Or type <b>'help'</b> to see all topics.";
+
+const suggestions = ["fees", "admission", "hostel", "placements", "exams", "courses"];
+
+// ─── UTILITIES ──────────────────────────────────────────────
+function getTime() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function findAnswer(input) {
+  const lower = input.toLowerCase();
+  for (const faq of faqs) {
+    if (faq.keywords.some(k => lower.includes(k))) {
+      return faq.answer;
+    }
+  }
+  return null;
+}
+
+// ─── UI FUNCTIONS ───────────────────────────────────────────
+function addMessage(content, type, showChips = false) {
+  const area = document.getElementById('chatArea');
+  const row = document.createElement('div');
+  row.className = `msg-row ${type}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = type === 'bot' ? '🎓' : '👤';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = content;
+
+  const time = document.createElement('span');
+  time.className = 'bubble-time';
+  time.textContent = getTime();
+  bubble.appendChild(time);
+
+  if (showChips && type === 'bot') {
+    const chips = document.createElement('div');
+    chips.className = 'chips';
+    suggestions.forEach(s => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = s;
+      chip.onclick = () => {
+        document.getElementById('userInput').value = s;
+        sendMessage();
+      };
+      chips.appendChild(chip);
+    });
+    bubble.appendChild(chips);
+  }
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  area.appendChild(row);
+  area.scrollTop = area.scrollHeight;
+}
+
+function showTyping() {
+  const area = document.getElementById('chatArea');
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.id = 'typing-indicator';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = '🎓';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+
+  row.appendChild(avatar);
+  row.appendChild(bubble);
+  area.appendChild(row);
+  area.scrollTop = area.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessage(text, 'user');
+  input.value = '';
+
+  showTyping();
+  setTimeout(() => {
+    removeTyping();
+    const answer = findAnswer(text);
+    if (answer) {
+      addMessage(answer, 'bot');
+    } else {
+      addMessage(defaultMsg, 'bot', true);
+    }
+  }, 700);
+}
+
+// Enter key support
+document.getElementById('userInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+// Welcome message
+window.onload = () => {
+  setTimeout(() => {
+    addMessage("👋 <b>Welcome to CampusBot!</b><br>I'm your virtual assistant for Symbiosis Institute of Technology, Nagpur.<br><br>Ask me anything — fees, admission, exams, hostel, or placements!", 'bot', true);
+  }, 300);
+};
+</script>
+</body>
+</html>
